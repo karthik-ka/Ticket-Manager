@@ -229,6 +229,12 @@ var TicketIndicator = GObject.registerClass(
             this._list = new St.BoxLayout({ vertical: true, style_class: 'ticket-list', x_expand: true, x_align: Clutter.ActorAlign.FILL });
             scroll.add_actor(this._list);
             this.menu.box.add_actor(scroll);
+            this._scrollView = scroll;
+
+            // ── Inline Add Form (hidden by default) ──
+            this._addForm = this._createAddForm();
+            this._addForm.hide();
+            this.menu.box.add_actor(this._addForm);
 
             // ── Footer ──
             const footer = new St.BoxLayout({ vertical: false, style_class: 'popup-footer' });
@@ -240,7 +246,7 @@ var TicketIndicator = GObject.registerClass(
             footer.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
 
             const addBtn = new St.Button({ label: '+ Add', style_class: 'add-btn', reactive: true });
-            addBtn.connect('clicked', () => this._showAddDialog());
+            addBtn.connect('clicked', () => this._showAddForm());
             footer.add_child(addBtn);
 
             this.menu.box.add_actor(footer);
@@ -377,69 +383,90 @@ var TicketIndicator = GObject.registerClass(
             dialog.show();
         }
 
-        _showAddDialog() {
-            const dialog = new ModalDialog.ModalDialog({
-                styleClass: 'ticket-dialog',
-                destroyOnClose: false,
-                shellReactive: true,
-                shouldFadeIn: false,
-                shouldFadeOut: false,
-            });
+        _createAddForm() {
+            const box = new St.BoxLayout({ vertical: true, style_class: 'inline-form' });
 
-            let selStatus = 'in_progress';
+            const state = { status: 'in_progress' };
 
-            const idEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
+            // Title
+            box.add_child(new St.Label({ text: 'Add Ticket', style_class: 'inline-form-title' }));
 
-            const urlEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
-            dialog.setInitialKeyFocus(urlEntry.clutter_text);
+            // Ticket ID
+            box.add_child(new St.Label({ text: 'Ticket ID (optional)', style_class: 'inline-form-label' }));
+            const idEntry = new St.Entry({ style_class: 'inline-form-entry', can_focus: true });
+            box.add_child(idEntry);
 
-            const layout = dialog.contentLayout;
-            layout.add_child(new St.Label({ text: 'Add Ticket', style_class: 'dialog-title' }));
+            // URL
+            box.add_child(new St.Label({ text: 'URL', style_class: 'inline-form-label' }));
+            const urlEntry = new St.Entry({ style_class: 'inline-form-entry', can_focus: true });
+            box.add_child(urlEntry);
 
-            layout.add_child(new St.Label({ text: 'Ticket ID (optional)', style_class: 'dialog-field-label' }));
-            layout.add_child(idEntry);
-
-            layout.add_child(new St.Label({ text: 'URL', style_class: 'dialog-field-label' }));
-            layout.add_child(urlEntry);
-
-            layout.add_child(new St.Label({ text: 'Status', style_class: 'dialog-field-label' }));
-            const statusBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
+            // Status
+            box.add_child(new St.Label({ text: 'Status', style_class: 'inline-form-label' }));
+            const statusBox = new St.BoxLayout({ vertical: false, style_class: 'inline-form-options' });
+            const statusBtns = {};
             Object.entries(STATUSES).forEach(([key, st]) => {
                 const btn = new St.Button({
                     label: st.label,
-                    style_class: 'opt-btn' + (key === 'in_progress' ? ' selected' : ''),
+                    style_class: 'inline-opt-btn' + (key === state.status ? ' selected' : ''),
                     reactive: true,
                 });
-                btn._val = key;
+                statusBtns[key] = btn;
                 btn.connect('clicked', () => {
-                    statusBox.get_children().forEach(c => c.remove_style_class_name('selected'));
+                    Object.values(statusBtns).forEach(b => b.remove_style_class_name('selected'));
                     btn.add_style_class_name('selected');
-                    selStatus = key;
+                    state.status = key;
                 });
                 statusBox.add_child(btn);
             });
-            layout.add_child(statusBox);
+            box.add_child(statusBox);
 
-            dialog.addButton({
-                label: 'Cancel',
-                action: () => dialog.close(global.get_current_time()),
-                key: Clutter.KEY_Escape,
+            // Buttons row
+            const btnRow = new St.BoxLayout({ vertical: false, style_class: 'inline-form-buttons' });
+            const cancelBtn = new St.Button({ label: 'Cancel', style_class: 'inline-cancel-btn', reactive: true });
+            cancelBtn.connect('clicked', () => this._hideAddForm());
+            btnRow.add_child(cancelBtn);
+            btnRow.add_child(new St.Widget({ x_expand: true }));
+            const createBtn = new St.Button({ label: 'Create', style_class: 'inline-create-btn', reactive: true });
+            createBtn.connect('clicked', () => {
+                const url = urlEntry.get_text().trim();
+                if (!url) return;
+                storage.add({
+                    id: idEntry.get_text().trim() || undefined,
+                    url,
+                    status: state.status,
+                });
+                this._hideAddForm();
+                this._loadTickets();
             });
-            dialog.addButton({
-                label: 'Create',
-                action: () => {
-                    storage.add({
-                        id: idEntry.get_text().trim() || undefined,
-                        url: urlEntry.get_text().trim(),
-                        status: selStatus,
-                    });
-                    dialog.close(global.get_current_time());
-                    this._loadTickets();
-                },
-            });
+            btnRow.add_child(createBtn);
+            box.add_child(btnRow);
 
-            dialog.open(global.get_current_time(), false);
-            dialog.show();
+            box._idEntry = idEntry;
+            box._urlEntry = urlEntry;
+            box._state = state;
+            box._statusBtns = statusBtns;
+
+            return box;
+        }
+
+        _showAddForm() {
+            const f = this._addForm;
+            f._idEntry.set_text('');
+            f._urlEntry.set_text('');
+            f._state.status = 'in_progress';
+            Object.values(f._statusBtns).forEach(b => b.remove_style_class_name('selected'));
+            f._statusBtns['in_progress'].add_style_class_name('selected');
+            this._scrollView.hide();
+            this._searchEntry.hide();
+            f.show();
+            f._urlEntry.grab_key_focus();
+        }
+
+        _hideAddForm() {
+            this._addForm.hide();
+            this._searchEntry.show();
+            this._scrollView.show();
         }
     }
 );

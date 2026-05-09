@@ -232,6 +232,100 @@
     border-color: #9a9996;
 }
 
+/* ─── Inline Add Form ─── */
+
+.inline-form {
+    padding: 8px 12px;
+    spacing: 6px;
+    border-top: 1px solid #5e5c64;
+    border-bottom: 1px solid #5e5c64;
+}
+
+.inline-form-title {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14px;
+    padding-bottom: 4px;
+}
+
+.inline-form-label {
+    color: #9a9996;
+    font-size: 11px;
+    padding-top: 4px;
+}
+
+.inline-form-entry {
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid #5e5c64;
+    background-color: #353535;
+    color: #ffffff;
+    selected-color: #ffffff;
+    selection-background-color: #1c71d8;
+    caret-color: #ffffff;
+    font-size: 12px;
+}
+
+.inline-form-entry:focus {
+    border-color: #1c71d8;
+}
+
+.inline-form-options {
+    spacing: 4px;
+    padding-top: 2px;
+}
+
+.inline-opt-btn {
+    color: #9a9996;
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    border: 1px solid #5e5c64;
+    background-color: #353535;
+}
+
+.inline-opt-btn:hover {
+    color: #ffffff;
+    border-color: #9a9996;
+}
+
+.inline-opt-btn.selected {
+    color: #ffffff;
+    background-color: #1c71d8;
+    border-color: #1c71d8;
+}
+
+.inline-form-buttons {
+    padding-top: 8px;
+    spacing: 6px;
+}
+
+.inline-cancel-btn {
+    color: #9a9996;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 4px;
+    border: 1px solid #5e5c64;
+}
+
+.inline-cancel-btn:hover {
+    color: #ffffff;
+    border-color: #9a9996;
+}
+
+.inline-create-btn {
+    color: #ffffff;
+    background-color: #26a269;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 5px 14px;
+    border-radius: 4px;
+}
+
+.inline-create-btn:hover {
+    background-color: #2ec27e;
+}
+
 .opt-btn.selected {
     color: #ffffff;
     background-color: #1c71d8;
