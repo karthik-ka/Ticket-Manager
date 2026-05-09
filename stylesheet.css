@@ -1,0 +1,227 @@
+/* Ticket Manager - Stylesheet */
+
+.popup-header {
+    padding: 8px 12px;
+    spacing: 8px;
+}
+
+.popup-title {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.popup-stats {
+    color: #9a9996;
+    font-size: 11px;
+    padding-left: 8px;
+}
+
+.search-entry {
+    margin: 4px 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #5e5c64;
+    background-color: #353535;
+    color: #ffffff;
+    selected-color: #ffffff;
+    selection-background-color: #1c71d8;
+    caret-color: #ffffff;
+    font-size: 13px;
+}
+
+.search-entry:focus {
+    border-color: #1c71d8;
+}
+
+.ticket-scrollview {
+    border-top: 1px solid #5e5c64;
+    border-bottom: 1px solid #5e5c64;
+    height: 300px;
+}
+
+.ticket-list {
+    padding: 2px 0;
+}
+
+.ticket-row {
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(94, 92, 100, 0.3);
+}
+
+.ticket-row:hover {
+    background-color: #353535;
+}
+
+.ticket-id {
+    color: #9a9996;
+    font-size: 9px;
+    font-family: monospace;
+}
+
+.ticket-badge {
+    font-size: 9px;
+    font-weight: bold;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+}
+
+.ticket-title {
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 2px 0;
+}
+
+.ticket-time {
+    color: #77767b;
+    font-size: 11px;
+}
+
+.priority-low { color: #77767b; background-color: rgba(119,118,123,0.2); }
+.priority-medium { color: #1a5fb4; background-color: rgba(26,95,180,0.2); }
+.priority-high { color: #e5a50a; background-color: rgba(229,165,10,0.2); }
+.priority-urgent { color: #c01c28; background-color: rgba(192,28,40,0.2); }
+
+.status-open { color: #1a5fb4; background-color: rgba(26,95,180,0.2); }
+.status-in_progress { color: #e5a50a; background-color: rgba(229,165,10,0.2); }
+.status-pending { color: #9141ac; background-color: rgba(145,65,172,0.2); }
+.status-resolved { color: #26a269; background-color: rgba(38,162,105,0.2); }
+.status-closed { color: #77767b; background-color: rgba(119,118,123,0.2); }
+
+.delete-button {
+    color: #77767b;
+    padding: 2px;
+    border-radius: 3px;
+}
+
+.delete-button:hover {
+    color: #c01c28;
+    background-color: rgba(192,28,40,0.15);
+}
+
+.popup-footer {
+    padding: 6px 12px;
+    spacing: 8px;
+}
+
+.footer-btn {
+    color: #9a9996;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+}
+
+.footer-btn:hover {
+    color: #ffffff;
+    background-color: #5e5c64;
+}
+
+.add-btn {
+    color: #ffffff;
+    background-color: #26a269;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 6px 14px;
+    border-radius: 6px;
+}
+
+.add-btn:hover {
+    background-color: #2ec27e;
+}
+
+.empty-label {
+    color: #77767b;
+    font-size: 14px;
+    padding: 30px;
+}
+
+/* Dialog */
+.dialog-content {
+    spacing: 10px;
+    padding: 16px;
+}
+
+.dialog-title {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 16px;
+    padding-bottom: 8px;
+}
+
+.dialog-field-label {
+    color: #9a9996;
+    font-size: 12px;
+}
+
+.dialog-entry {
+    padding: 6px 10px;
+    border-radius: 5px;
+    border: 1px solid #5e5c64;
+    background-color: #353535;
+    color: #ffffff;
+    selected-color: #ffffff;
+    selection-background-color: #1c71d8;
+    caret-color: #ffffff;
+    font-size: 13px;
+}
+
+.dialog-entry:focus {
+    border-color: #1c71d8;
+}
+
+.dialog-options {
+    spacing: 4px;
+}
+
+.opt-btn {
+    color: #9a9996;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #5e5c64;
+    background-color: #353535;
+}
+
+.opt-btn:hover {
+    color: #ffffff;
+    border-color: #9a9996;
+}
+
+.opt-btn.selected {
+    color: #ffffff;
+    background-color: #1c71d8;
+    border-color: #1c71d8;
+}
+
+.dialog-buttons {
+    spacing: 8px;
+    padding-top: 12px;
+}
+
+.dialog-cancel-btn {
+    color: #9a9996;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 5px;
+    border: 1px solid #5e5c64;
+}
+
+.dialog-cancel-btn:hover {
+    color: #ffffff;
+    background-color: #5e5c64;
+}
+
+.dialog-save-btn {
+    color: #ffffff;
+    background-color: #26a269;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 6px 18px;
+    border-radius: 5px;
+}
+
+.dialog-save-btn:hover {
+    background-color: #2ec27e;
+}

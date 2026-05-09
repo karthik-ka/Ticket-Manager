@@ -1,0 +1,19 @@
+{
+    "uuid": "ticket-manager@support.tech",
+    "name": "Ticket Manager",
+    "description": "A GNOME Shell extension for managing support tickets - optimized for fast multi-ticket workflows with quick access from the top panel",
+    "version": "1.0.0",
+    "author": "Linux Support Team",
+    "url": "https://github.com/support-team/ticket-manager",
+    "shell-version": [
+        "42",
+        "43",
+        "44",
+        "45",
+        "46"
+    ],
+    "session-modes": [
+        "user",
+        "unified"
+    ]
+}
