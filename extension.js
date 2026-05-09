@@ -4,7 +4,6 @@ const { Clutter, St, GObject, Gio, GLib } = imports.gi;
 
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
-const PopupMenu = imports.ui.popupMenu;
 const ModalDialog = imports.ui.modalDialog;
 const ExtensionUtils = imports.misc.extensionUtils;
 
@@ -13,11 +12,11 @@ const Me = ExtensionUtils.getCurrentExtension();
 // ─── Constants ─────────────────────────────────────────────────────────
 
 const STATUSES = {
-    open:       { label: 'Open',        color: '#9a9996' },
-    in_progress:{ label: 'In Progress', color: '#c01c28' },
-    on_hold:    { label: 'On Hold',     color: '#1a5fb4' },
-    answered:   { label: 'Answered',    color: '#77767b' },
-    completed:  { label: 'Completed',   color: '#26a269' },
+    onhold:      { label: 'On Hold',     color: '#3584e4' },
+    answered:    { label: 'Answered',    color: '#ffffff' },
+    in_progress: { label: 'In Progress', color: '#c01c28' },
+    closed:      { label: 'Closed',      color: '#26a269' },
+    sales_billing:{label: 'Sales/Billing', color: '#e5a50a' },
 };
 
 // ─── Storage ───────────────────────────────────────────────────────────
@@ -48,10 +47,10 @@ var Storage = {
         const list = this.load();
         const now = Date.now();
         const t = {
-            id: data.id || ('TKT-' + now.toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase()),
-            title: data.title || '',
+            id: data.id || '',
+            title: '',
             description: data.description || '',
-            status: data.status || 'open',
+            status: data.status || 'in_progress',
             priority: data.priority || 'medium',
             category: data.category || '',
             assignee: data.assignee || '',
@@ -112,42 +111,44 @@ function createTicketRow(ticket, onDelete, onEdit) {
         x_expand: true,
     });
 
-    // Ticket ID (clickable)
-    const idLabel = new St.Button({
-        label: ticket.id || '',
-        style_class: 'ticket-id',
-        reactive: true,
-        y_align: Clutter.ActorAlign.CENTER,
+    // Left vertical block: ID (metadata) + URL (main)
+    const leftBlock = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
     });
-    idLabel.connect('clicked', () => {
-        if (ticket.url) openUrl(ticket.url);
-    });
-    row.add_child(idLabel);
 
-    // URL (clickable)
-    const urlText = ticket.url || '-';
+    // Ticket ID — subtle metadata
+    const idLabel = new St.Label({
+        text: ticket.id || '',
+        style_class: 'ticket-id-metadata',
+        y_align: Clutter.ActorAlign.START,
+    });
+    leftBlock.add_child(idLabel);
+
+    // URL — main clickable element
+    const urlText = ticket.url || '';
     if (ticket.url) {
         const urlBtn = new St.Button({
-            label: urlText.length > 25 ? urlText.substring(0, 22) + '...' : urlText,
-            style_class: 'ticket-url clickable',
+            label: urlText.length > 45 ? urlText.substring(0, 42) + '...' : urlText,
+            style_class: 'ticket-url-main clickable',
             reactive: true,
-            y_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.START,
         });
         urlBtn.connect('clicked', () => openUrl(ticket.url));
-        row.add_child(urlBtn);
+        leftBlock.add_child(urlBtn);
     } else {
         const urlLabel = new St.Label({
-            text: '-',
-            style_class: 'ticket-url no-url',
-            y_align: Clutter.ActorAlign.CENTER,
+            text: '',
+            style_class: 'ticket-url-main no-url',
+            y_align: Clutter.ActorAlign.START,
         });
-        row.add_child(urlLabel);
+        leftBlock.add_child(urlLabel);
     }
 
-    row.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
+    row.add_child(leftBlock);
 
     // Status label
-    const statusVal = ticket.status || 'open';
+    const statusVal = ticket.status || 'in_progress';
     const statusLabel = new St.Label({
         text: STATUSES[statusVal]?.label || 'Open',
         style_class: 'status-label status-' + statusVal,
@@ -221,7 +222,7 @@ var TicketIndicator = GObject.registerClass(
             this.menu.box.add_actor(this._searchEntry);
 
             // ── Scrollable List ──
-            const scroll = new St.ScrollView({ style_class: 'ticket-scrollview' });
+            const scroll = new St.ScrollView({ style_class: 'ticket-scrollview', clip_to_allocation: true });
             scroll.set_policy(0, 1); // NEVER, AUTOMATIC
             this._list = new St.BoxLayout({ vertical: true, style_class: 'ticket-list' });
             scroll.add_actor(this._list);
@@ -254,7 +255,7 @@ var TicketIndicator = GObject.registerClass(
             this._list.destroy_all_children();
             const q = this._searchQuery || '';
             const filtered = q
-                ? this._tickets.filter(t => [t.id, t.title, t.url, t.description].filter(Boolean).join(' ').toLowerCase().includes(q.toLowerCase()))
+                ? this._tickets.filter(t => [t.id, t.url, t.description].filter(Boolean).join(' ').toLowerCase().includes(q.toLowerCase()))
                 : this._tickets;
 
             const stats = { total: this._tickets.length };
@@ -326,16 +327,11 @@ var TicketIndicator = GObject.registerClass(
 
             let selStatus = ticket.status || 'open';
 
-            const titleEntry = new St.Entry({ text: ticket.title || '', style_class: 'dialog-entry', can_focus: true });
-            dialog.setInitialKeyFocus(titleEntry.clutter_text);
-
             const urlEntry = new St.Entry({ text: ticket.url || '', style_class: 'dialog-entry', can_focus: true });
+            dialog.setInitialKeyFocus(urlEntry.clutter_text);
 
             const layout = dialog.contentLayout;
             layout.add_child(new St.Label({ text: 'Edit Ticket', style_class: 'dialog-title' }));
-
-            layout.add_child(new St.Label({ text: 'Title', style_class: 'dialog-field-label' }));
-            layout.add_child(titleEntry);
 
             layout.add_child(new St.Label({ text: 'URL', style_class: 'dialog-field-label' }));
             layout.add_child(urlEntry);
@@ -366,10 +362,7 @@ var TicketIndicator = GObject.registerClass(
             dialog.addButton({
                 label: 'Save',
                 action: () => {
-                    const title = titleEntry.get_text().trim();
-                    if (!title) return;
                     storage.update(ticket.id, {
-                        title,
                         url: urlEntry.get_text().trim(),
                         status: selStatus,
                     });
@@ -391,23 +384,18 @@ var TicketIndicator = GObject.registerClass(
                 shouldFadeOut: false,
             });
 
-            let selStatus = 'open';
+            let selStatus = 'in_progress';
 
             const idEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
 
-            const titleEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
-            dialog.setInitialKeyFocus(titleEntry.clutter_text);
-
             const urlEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
+            dialog.setInitialKeyFocus(urlEntry.clutter_text);
 
             const layout = dialog.contentLayout;
             layout.add_child(new St.Label({ text: 'Add Ticket', style_class: 'dialog-title' }));
 
-            layout.add_child(new St.Label({ text: 'Ticket ID (leave empty for auto-generate)', style_class: 'dialog-field-label' }));
+            layout.add_child(new St.Label({ text: 'Ticket ID (optional)', style_class: 'dialog-field-label' }));
             layout.add_child(idEntry);
-
-            layout.add_child(new St.Label({ text: 'Title', style_class: 'dialog-field-label' }));
-            layout.add_child(titleEntry);
 
             layout.add_child(new St.Label({ text: 'URL', style_class: 'dialog-field-label' }));
             layout.add_child(urlEntry);
@@ -417,7 +405,7 @@ var TicketIndicator = GObject.registerClass(
             Object.entries(STATUSES).forEach(([key, st]) => {
                 const btn = new St.Button({
                     label: st.label,
-                    style_class: 'opt-btn' + (key === 'open' ? ' selected' : ''),
+                    style_class: 'opt-btn' + (key === 'in_progress' ? ' selected' : ''),
                     reactive: true,
                 });
                 btn._val = key;
@@ -438,11 +426,8 @@ var TicketIndicator = GObject.registerClass(
             dialog.addButton({
                 label: 'Create',
                 action: () => {
-                    const title = titleEntry.get_text().trim();
-                    if (!title) return;
                     storage.add({
                         id: idEntry.get_text().trim() || undefined,
-                        title,
                         url: urlEntry.get_text().trim(),
                         status: selStatus,
                     });

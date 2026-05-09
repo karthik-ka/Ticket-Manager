@@ -44,7 +44,7 @@
     padding: 2px 0;
 }
 
-/* Row format: [TicketID] [URL] [Status ▼] [Delete] */
+/* Row format: [ID+URL vertical] [Status] [Edit] [Delete] */
 .ticket-row {
     padding: 6px 8px;
     spacing: 8px;
@@ -55,35 +55,24 @@
     background-color: #353535;
 }
 
-.ticket-id {
-    color: #3584e4;
-    font-size: 10px;
-    font-family: monospace;
-    font-weight: bold;
-    min-width: 80px;
-    max-width: 100px;
-}
-
-.ticket-id:hover {
-    color: #62a0ea;
-}
-
-.ticket-url {
+/* Ticket ID — subtle metadata above URL */
+.ticket-id-metadata {
     color: #9a9996;
-    font-size: 11px;
-    min-width: 60px;
-    max-width: 120px;
+    font-size: 9px;
+    font-family: monospace;
 }
 
-.ticket-url.clickable {
+/* Ticket URL — main clickable element */
+.ticket-url-main {
     color: #3584e4;
+    font-size: 11px;
 }
 
-.ticket-url.clickable:hover {
+.ticket-url-main.clickable:hover {
     color: #62a0ea;
 }
 
-.ticket-url.no-url {
+.ticket-url-main.no-url {
     color: #555555;
 }
 
@@ -106,9 +95,14 @@
     text-align: center;
 }
 
-.status-open {
-    color: #9a9996;
-    background-color: rgba(154, 153, 150, 0.15);
+.status-onhold {
+    color: #3584e4;
+    background-color: rgba(53, 132, 228, 0.15);
+}
+
+.status-answered {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.12);
 }
 
 .status-in_progress {
@@ -116,19 +110,14 @@
     background-color: rgba(192, 28, 40, 0.15);
 }
 
-.status-on_hold {
-    color: #1a5fb4;
-    background-color: rgba(26, 95, 180, 0.15);
-}
-
-.status-answered {
-    color: #77767b;
-    background-color: rgba(119, 118, 123, 0.15);
-}
-
-.status-completed {
+.status-closed {
     color: #26a269;
     background-color: rgba(38, 162, 105, 0.15);
+}
+
+.status-sales_billing {
+    color: #e5a50a;
+    background-color: rgba(229, 165, 10, 0.15);
 }
 
 /* Delete button */
