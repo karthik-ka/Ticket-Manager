@@ -1,14 +1,24 @@
 'use strict';
 
-const { Clutter, Meta, Shell, St, GObject, Gio, GLib } = imports.gi;
+const { Clutter, St, GObject, Gio, GLib } = imports.gi;
 
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const ModalDialog = imports.ui.modalDialog;
-
 const ExtensionUtils = imports.misc.extensionUtils;
+
 const Me = ExtensionUtils.getCurrentExtension();
+
+// ─── Constants ─────────────────────────────────────────────────────────
+
+const STATUSES = {
+    open:       { label: 'Open',        color: '#9a9996' },
+    in_progress:{ label: 'In Progress', color: '#c01c28' },
+    on_hold:    { label: 'On Hold',     color: '#1a5fb4' },
+    answered:   { label: 'Answered',    color: '#77767b' },
+    completed:  { label: 'Completed',   color: '#26a269' },
+};
 
 // ─── Storage ───────────────────────────────────────────────────────────
 
@@ -39,9 +49,16 @@ var Storage = {
         const now = Date.now();
         const t = {
             id: 'TKT-' + now.toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-            title: data.title || '', description: data.description || '', status: data.status || 'open',
-            priority: data.priority || 'medium', category: data.category || '', assignee: data.assignee || '',
-            url: data.url || '', tags: [], createdAt: now, updatedAt: now,
+            title: data.title || '',
+            description: data.description || '',
+            status: data.status || 'open',
+            priority: data.priority || 'medium',
+            category: data.category || '',
+            assignee: data.assignee || '',
+            url: data.url || '',
+            tags: [],
+            createdAt: now,
+            updatedAt: now,
         };
         list.push(t);
         return this.save(list) ? t : null;
@@ -49,7 +66,19 @@ var Storage = {
     remove(id) {
         return this.save(this.load().filter(t => t.id !== id));
     },
+    removeAll() {
+        return this.save([]);
+    },
+    update(id, changes) {
+        const list = this.load();
+        const idx = list.findIndex(t => t.id === id);
+        if (idx === -1) return false;
+        list[idx] = Object.assign(list[idx], changes, { updatedAt: Date.now() });
+        return this.save(list);
+    },
 };
+
+const storage = Storage;
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
@@ -64,41 +93,95 @@ function timeAgo(ts) {
     return Math.floor(h / 24) + 'd';
 }
 
-function filterTickets(list, q) {
-    if (!q) return list;
-    const ql = q.toLowerCase();
-    return list.filter(t => [t.title, t.id, t.description, t.category, t.assignee].filter(Boolean).join(' ').toLowerCase().includes(ql));
+function openUrl(url) {
+    if (!url) return;
+    try {
+        Gio.AppInfo.launch_default_for_uri(url, null);
+    } catch (e) {
+        log('[TM] Failed to open URL: ' + e.message);
+    }
 }
 
-// ─── Ticket Row Widget ─────────────────────────────────────────────────
+// ─── Ticket Row ─────────────────────────────────────────────────────────
 
-function createTicketRow(ticket, onDelete) {
-    const row = new St.BoxLayout({ vertical: true, style_class: 'ticket-row', reactive: true, track_hover: true });
+function createTicketRow(ticket, onDelete, onStatusChange) {
+    const row = new St.BoxLayout({
+        vertical: false,
+        style_class: 'ticket-row',
+        reactive: true,
+        x_expand: true,
+    });
 
-    const line1 = new St.BoxLayout({ vertical: false });
-    const idLbl = new St.Label({ text: ticket.id, style_class: 'ticket-id', y_align: Clutter.ActorAlign.CENTER });
-    line1.add_child(idLbl);
-    line1.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
+    // Ticket ID (clickable)
+    const idLabel = new St.Button({
+        label: ticket.id || '',
+        style_class: 'ticket-id',
+        reactive: true,
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+    idLabel.connect('clicked', () => {
+        if (ticket.url) openUrl(ticket.url);
+    });
+    row.add_child(idLabel);
 
-    const pLbl = new St.Label({ text: ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1), style_class: 'ticket-badge priority-' + ticket.priority, y_align: Clutter.ActorAlign.CENTER });
-    line1.add_child(pLbl);
-    const sLbl = new St.Label({ text: ticket.status.replace('_', ' '), style_class: 'ticket-badge status-' + ticket.status, y_align: Clutter.ActorAlign.CENTER });
-    line1.add_child(sLbl);
+    // URL (clickable)
+    const urlText = ticket.url || '-';
+    if (ticket.url) {
+        const urlBtn = new St.Button({
+            label: urlText.length > 25 ? urlText.substring(0, 22) + '...' : urlText,
+            style_class: 'ticket-url clickable',
+            reactive: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        urlBtn.connect('clicked', () => openUrl(ticket.url));
+        row.add_child(urlBtn);
+    } else {
+        const urlLabel = new St.Label({
+            text: '-',
+            style_class: 'ticket-url no-url',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        row.add_child(urlLabel);
+    }
 
-    const titleLbl = new St.Label({ text: ticket.title || '', style_class: 'ticket-title' });
+    row.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
 
-    const line2 = new St.BoxLayout({ vertical: false });
-    const timeLbl = new St.Label({ text: timeAgo(ticket.updatedAt), style_class: 'ticket-time', y_align: Clutter.ActorAlign.CENTER });
-    line2.add_child(timeLbl);
-    line2.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
+    // Status dropdown
+    const statusVal = ticket.status || 'open';
+    const statusBtn = new St.Button({
+        label: STATUSES[statusVal]?.label || 'Open',
+        style_class: 'status-btn status-' + statusVal,
+        reactive: true,
+        can_focus: true,
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+    statusBtn.connect('button-press-event', (actor, event) => {
+        const menu = new PopupMenu.PopupMenu(actor, event.get_x(), event.get_y());
+        Object.entries(STATUSES).forEach(([key, st]) => {
+            const item = new PopupMenu.PopupMenuItem(st.label);
+            item.connect('activate', () => {
+                if (onStatusChange) onStatusChange(ticket, key);
+                menu.close();
+            });
+            menu.addMenuItem(item);
+        });
+        menu.open(true);
+        return Clutter.EVENT_STOP;
+    });
+    row.add_child(statusBtn);
 
-    const delBtn = new St.Button({ style_class: 'delete-button', child: new St.Icon({ icon_name: 'edit-delete-symbolic', icon_size: 12 }), reactive: true, y_align: Clutter.ActorAlign.CENTER });
-    delBtn.connect('clicked', () => { if (onDelete) onDelete(ticket); });
-    line2.add_child(delBtn);
+    // Delete button
+    const delBtn = new St.Button({
+        style_class: 'delete-button',
+        child: new St.Icon({ icon_name: 'edit-delete-symbolic', icon_size: 12 }),
+        reactive: true,
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+    delBtn.connect('clicked', () => {
+        if (onDelete) onDelete(ticket);
+    });
+    row.add_child(delBtn);
 
-    row.add_child(line1);
-    row.add_child(titleLbl);
-    row.add_child(line2);
     return row;
 }
 
@@ -108,8 +191,6 @@ var TicketIndicator = GObject.registerClass(
     class TicketIndicator extends PanelMenu.Button {
         _init() {
             super._init(0.0, 'Ticket Manager', false);
-
-            this._storage = Storage;
 
             const icon = new St.Icon({ icon_name: 'emblem-documents-symbolic', style_class: 'system-status-icon' });
             this.add_child(icon);
@@ -131,7 +212,11 @@ var TicketIndicator = GObject.registerClass(
             this.menu.box.add_actor(header);
 
             // ── Search ──
-            this._searchEntry = new St.Entry({ style_class: 'search-entry', hint_text: 'Search tickets...', can_focus: true });
+            this._searchEntry = new St.Entry({
+                style_class: 'search-entry',
+                hint_text: 'Search tickets...',
+                can_focus: true,
+            });
             this._searchEntry.clutter_text.connect('text-changed', () => {
                 this._searchQuery = this._searchEntry.get_text();
                 this._renderList();
@@ -140,47 +225,98 @@ var TicketIndicator = GObject.registerClass(
 
             // ── Scrollable List ──
             const scroll = new St.ScrollView({ style_class: 'ticket-scrollview' });
-            scroll.set_policy(0, 1);
+            scroll.set_policy(0, 1); // NEVER, AUTOMATIC
             this._list = new St.BoxLayout({ vertical: true, style_class: 'ticket-list' });
             scroll.add_actor(this._list);
             this.menu.box.add_actor(scroll);
 
             // ── Footer ──
             const footer = new St.BoxLayout({ vertical: false, style_class: 'popup-footer' });
-            const refreshBtn = new St.Button({ label: 'Refresh', style_class: 'footer-btn', reactive: true });
-            refreshBtn.connect('clicked', () => this._loadTickets());
-            footer.add_child(refreshBtn);
+
+            const deleteAllBtn = new St.Button({ label: 'Delete All', style_class: 'delete-all-btn', reactive: true });
+            deleteAllBtn.connect('clicked', () => this._confirmDeleteAll());
+            footer.add_child(deleteAllBtn);
+
             footer.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
+
             const addBtn = new St.Button({ label: '+ Add', style_class: 'add-btn', reactive: true });
             addBtn.connect('clicked', () => this._showAddDialog());
             footer.add_child(addBtn);
+
             this.menu.box.add_actor(footer);
 
             this._loadTickets();
         }
 
         _loadTickets() {
-            this._tickets = this._storage.load();
+            this._tickets = storage.load();
             this._renderList();
         }
 
         _renderList() {
             this._list.destroy_all_children();
-            const filtered = filterTickets(this._tickets, this._searchQuery);
-            const stats = { total: this._tickets.length, open: this._tickets.filter(t => t.status === 'open').length };
-            this._statsLbl.set_text(stats.total + ' · ' + stats.open + ' open');
+            const q = this._searchQuery || '';
+            const filtered = q
+                ? this._tickets.filter(t => [t.id, t.title, t.url, t.description].filter(Boolean).join(' ').toLowerCase().includes(q.toLowerCase()))
+                : this._tickets;
+
+            const stats = { total: this._tickets.length };
+            this._statsLbl.set_text(stats.total + ' ticket' + (stats.total !== 1 ? 's' : ''));
 
             if (filtered.length === 0) {
-                this._list.add_child(new St.Label({ text: this._searchQuery ? 'No matches' : 'No tickets', style_class: 'empty-label' }));
+                this._list.add_child(new St.Label({
+                    text: q ? 'No matches' : 'No tickets yet',
+                    style_class: 'empty-label',
+                }));
                 return;
             }
 
-            filtered.slice(0, 50).forEach(t => {
-                this._list.add_child(createTicketRow(t, (ticket) => {
-                    this._storage.remove(ticket.id);
-                    this._loadTickets();
-                }));
+            filtered.slice(0, 100).forEach(t => {
+                this._list.add_child(createTicketRow(
+                    t,
+                    (ticket) => {
+                        storage.remove(ticket.id);
+                        this._loadTickets();
+                    },
+                    (ticket, newStatus) => {
+                        storage.update(ticket.id, { status: newStatus });
+                        this._loadTickets();
+                    }
+                ));
             });
+        }
+
+        _confirmDeleteAll() {
+            const dialog = new ModalDialog.ModalDialog({
+                styleClass: 'ticket-dialog',
+                destroyOnClose: false,
+                shellReactive: true,
+                shouldFadeIn: false,
+                shouldFadeOut: false,
+            });
+            dialog.contentLayout.add_child(new St.Label({
+                text: 'Delete all tickets?',
+                style_class: 'dialog-title',
+            }));
+            dialog.contentLayout.add_child(new St.Label({
+                text: 'This action cannot be undone.',
+                style_class: 'dialog-field-label',
+            }));
+            dialog.addButton({
+                label: 'Cancel',
+                action: () => dialog.close(global.get_current_time()),
+                key: Clutter.KEY_Escape,
+            });
+            dialog.addButton({
+                label: 'Delete All',
+                action: () => {
+                    storage.removeAll();
+                    dialog.close(global.get_current_time());
+                    this._loadTickets();
+                },
+            });
+            dialog.open(global.get_current_time(), false);
+            dialog.show();
         }
 
         _showAddDialog() {
@@ -193,46 +329,42 @@ var TicketIndicator = GObject.registerClass(
             });
 
             let selStatus = 'open';
-            let selPriority = 'medium';
 
             const titleEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
             dialog.setInitialKeyFocus(titleEntry.clutter_text);
 
-            const descEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
             const urlEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
-
-            const statusBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
-            [['open', 'Open'], ['in_progress', 'In Progress'], ['pending', 'Pending'], ['resolved', 'Resolved'], ['closed', 'Closed']].forEach(([val, label]) => {
-                const btn = new St.Button({ label, style_class: 'opt-btn' + (val === 'open' ? ' selected' : ''), reactive: true });
-                btn._val = val;
-                btn.connect('clicked', () => { statusBox.get_children().forEach(c => c.remove_style_class_name('selected')); btn.add_style_class_name('selected'); selStatus = val; });
-                statusBox.add_child(btn);
-            });
-
-            const priorityBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
-            [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['urgent', 'Urgent']].forEach(([val, label]) => {
-                const btn = new St.Button({ label, style_class: 'opt-btn' + (val === 'medium' ? ' selected' : ''), reactive: true });
-                btn._val = val;
-                btn.connect('clicked', () => { priorityBox.get_children().forEach(c => c.remove_style_class_name('selected')); btn.add_style_class_name('selected'); selPriority = val; });
-                priorityBox.add_child(btn);
-            });
 
             const layout = dialog.contentLayout;
             layout.add_child(new St.Label({ text: 'Add Ticket', style_class: 'dialog-title' }));
+
             layout.add_child(new St.Label({ text: 'Title', style_class: 'dialog-field-label' }));
             layout.add_child(titleEntry);
-            layout.add_child(new St.Label({ text: 'Description', style_class: 'dialog-field-label' }));
-            layout.add_child(descEntry);
-            layout.add_child(new St.Label({ text: 'Status', style_class: 'dialog-field-label' }));
-            layout.add_child(statusBox);
-            layout.add_child(new St.Label({ text: 'Priority', style_class: 'dialog-field-label' }));
-            layout.add_child(priorityBox);
+
             layout.add_child(new St.Label({ text: 'URL', style_class: 'dialog-field-label' }));
             layout.add_child(urlEntry);
 
+            layout.add_child(new St.Label({ text: 'Status', style_class: 'dialog-field-label' }));
+            const statusBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
+            Object.entries(STATUSES).forEach(([key, st]) => {
+                const btn = new St.Button({
+                    label: st.label,
+                    style_class: 'opt-btn' + (key === 'open' ? ' selected' : ''),
+                    reactive: true,
+                });
+                btn._val = key;
+                btn.connect('clicked', () => {
+                    statusBox.get_children().forEach(c => c.remove_style_class_name('selected'));
+                    btn.add_style_class_name('selected');
+                    selStatus = key;
+                });
+                statusBox.add_child(btn);
+            });
+            layout.add_child(statusBox);
+
             dialog.addButton({
                 label: 'Cancel',
-                action: () => { dialog.close(global.get_current_time()); },
+                action: () => dialog.close(global.get_current_time()),
                 key: Clutter.KEY_Escape,
             });
             dialog.addButton({
@@ -240,7 +372,11 @@ var TicketIndicator = GObject.registerClass(
                 action: () => {
                     const title = titleEntry.get_text().trim();
                     if (!title) return;
-                    this._storage.add({ title, description: descEntry.get_text(), status: selStatus, priority: selPriority, url: urlEntry.get_text() });
+                    storage.add({
+                        title,
+                        url: urlEntry.get_text().trim(),
+                        status: selStatus,
+                    });
                     dialog.close(global.get_current_time());
                     this._loadTickets();
                 },

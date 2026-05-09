@@ -37,15 +37,17 @@
 .ticket-scrollview {
     border-top: 1px solid #5e5c64;
     border-bottom: 1px solid #5e5c64;
-    height: 300px;
+    height: 320px;
 }
 
 .ticket-list {
     padding: 2px 0;
 }
 
+/* Row format: [TicketID] [URL] [Status ▼] [Delete] */
 .ticket-row {
-    padding: 6px 12px;
+    padding: 6px 8px;
+    spacing: 8px;
     border-bottom: 1px solid rgba(94, 92, 100, 0.3);
 }
 
@@ -54,68 +56,114 @@
 }
 
 .ticket-id {
-    color: #9a9996;
-    font-size: 9px;
+    color: #3584e4;
+    font-size: 10px;
     font-family: monospace;
-}
-
-.ticket-badge {
-    font-size: 9px;
     font-weight: bold;
-    padding: 1px 5px;
-    border-radius: 3px;
-    margin-left: 4px;
+    min-width: 80px;
+    max-width: 100px;
 }
 
-.ticket-title {
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 2px 0;
+.ticket-id:hover {
+    color: #62a0ea;
 }
 
-.ticket-time {
-    color: #77767b;
+.ticket-url {
+    color: #9a9996;
     font-size: 11px;
+    min-width: 60px;
+    max-width: 120px;
 }
 
-.priority-low { color: #77767b; background-color: rgba(119,118,123,0.2); }
-.priority-medium { color: #1a5fb4; background-color: rgba(26,95,180,0.2); }
-.priority-high { color: #e5a50a; background-color: rgba(229,165,10,0.2); }
-.priority-urgent { color: #c01c28; background-color: rgba(192,28,40,0.2); }
+.ticket-url.clickable {
+    color: #3584e4;
+}
 
-.status-open { color: #1a5fb4; background-color: rgba(26,95,180,0.2); }
-.status-in_progress { color: #e5a50a; background-color: rgba(229,165,10,0.2); }
-.status-pending { color: #9141ac; background-color: rgba(145,65,172,0.2); }
-.status-resolved { color: #26a269; background-color: rgba(38,162,105,0.2); }
-.status-closed { color: #77767b; background-color: rgba(119,118,123,0.2); }
+.ticket-url.clickable:hover {
+    color: #62a0ea;
+}
 
+.ticket-url.no-url {
+    color: #555555;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+.clickable:hover {
+    text-decoration: underline;
+}
+
+/* ─── Status Button ─── */
+
+.status-btn {
+    font-size: 10px;
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 4px;
+    min-width: 70px;
+    text-align: center;
+}
+
+.status-btn:hover {
+    filter: brightness(1.2);
+}
+
+.status-open {
+    color: #9a9996;
+    background-color: rgba(154, 153, 150, 0.15);
+}
+
+.status-in_progress {
+    color: #c01c28;
+    background-color: rgba(192, 28, 40, 0.15);
+}
+
+.status-on_hold {
+    color: #1a5fb4;
+    background-color: rgba(26, 95, 180, 0.15);
+}
+
+.status-answered {
+    color: #77767b;
+    background-color: rgba(119, 118, 123, 0.15);
+}
+
+.status-completed {
+    color: #26a269;
+    background-color: rgba(38, 162, 105, 0.15);
+}
+
+/* Delete button */
 .delete-button {
     color: #77767b;
-    padding: 2px;
+    padding: 3px;
     border-radius: 3px;
 }
 
 .delete-button:hover {
     color: #c01c28;
-    background-color: rgba(192,28,40,0.15);
+    background-color: rgba(192, 28, 40, 0.15);
 }
 
+/* Footer */
 .popup-footer {
     padding: 6px 12px;
     spacing: 8px;
 }
 
-.footer-btn {
-    color: #9a9996;
-    font-size: 12px;
+.delete-all-btn {
+    color: #c01c28;
+    font-size: 11px;
     padding: 4px 10px;
     border-radius: 4px;
+    border: 1px solid transparent;
 }
 
-.footer-btn:hover {
-    color: #ffffff;
-    background-color: #5e5c64;
+.delete-all-btn:hover {
+    background-color: rgba(192, 28, 40, 0.1);
+    border-color: rgba(192, 28, 40, 0.3);
 }
 
 .add-btn {
@@ -131,17 +179,15 @@
     background-color: #2ec27e;
 }
 
+/* Empty state */
 .empty-label {
     color: #77767b;
     font-size: 14px;
     padding: 30px;
+    text-align: center;
 }
 
-/* Dialog */
-.dialog-content {
-    spacing: 10px;
-    padding: 16px;
-}
+/* ─── Dialog ─── */
 
 .dialog-title {
     color: #ffffff;
@@ -193,35 +239,4 @@
     color: #ffffff;
     background-color: #1c71d8;
     border-color: #1c71d8;
-}
-
-.dialog-buttons {
-    spacing: 8px;
-    padding-top: 12px;
-}
-
-.dialog-cancel-btn {
-    color: #9a9996;
-    font-size: 12px;
-    padding: 6px 14px;
-    border-radius: 5px;
-    border: 1px solid #5e5c64;
-}
-
-.dialog-cancel-btn:hover {
-    color: #ffffff;
-    background-color: #5e5c64;
-}
-
-.dialog-save-btn {
-    color: #ffffff;
-    background-color: #26a269;
-    font-size: 12px;
-    font-weight: bold;
-    padding: 6px 18px;
-    border-radius: 5px;
-}
-
-.dialog-save-btn:hover {
-    background-color: #2ec27e;
 }
