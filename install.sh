@@ -1,34 +1,25 @@
 #!/bin/bash
-# Install script for Ticket Manager GNOME Extension
-
 set -e
 
-EXTENSION_NAME="ticket-manager@support.tech"
-INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/$EXTENSION_NAME"
+UUID="ticket-manager@support.tech"
+DEST="$HOME/.local/share/gnome-shell/extensions/$UUID"
 
-echo "Installing Ticket Manager GNOME Extension..."
+echo "Installing Ticket Manager extension..."
 
-# Create installation directory
-mkdir -p "$INSTALL_DIR"
+# Create target directory
+mkdir -p "$DEST"
 
-# Copy all files
-cp -r . "$INSTALL_DIR/"
+# Copy core files
+cp extension.js stylesheet.css metadata.json "$DEST/"
 
-# Make sure icon is accessible
-chmod 644 "$INSTALL_DIR/icons/ticket-symbolic.svg"
-
-echo "Extension copied to: $INSTALL_DIR"
+# Copy and compile schema
+cp -r schemas "$DEST/"
+glib-compile-schemas "$DEST/schemas/"
 
 # Enable the extension
-echo "Enabling extension..."
-gnome-extensions enable "$EXTENSION_NAME" 2>/dev/null || echo "Note: Run 'gnome-extensions enable $EXTENSION_NAME' manually if needed"
+gnome-extensions enable "$UUID" 2>/dev/null || true
 
 echo ""
 echo "Installation complete!"
-echo ""
-echo "Next steps:"
-echo "1. Press Alt+F2, type 'r', and press Enter to reload GNOME Shell"
-echo "2. Or log out and log back in"
-echo "3. Look for the ticket icon in the top-right panel"
-echo ""
-echo "To view logs: journalctl -f -o cat /usr/bin/gnome-shell | grep 'Ticket Manager'"
+echo "Restart GNOME Shell: Alt+F2 -> r -> Enter"
+echo "Or log out and back in."

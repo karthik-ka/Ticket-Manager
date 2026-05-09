@@ -17,6 +17,24 @@ A native GNOME Shell extension for support technicians to manage tickets directl
 
 - GNOME Shell 42+
 - GJS (GNOME JavaScript)
+- `glib-compile-schemas` (from `glib2` tools) — required for installation
+
+### Installing glib2 tools
+
+Debian / Ubuntu:
+```bash
+sudo apt install libglib2.0-bin
+```
+
+Fedora:
+```bash
+sudo dnf install glib2
+```
+
+Arch Linux:
+```bash
+sudo pacman -S glib2
+```
 
 ## Installation
 
