@@ -1,195 +1,128 @@
 # Ticket Manager - GNOME Shell Extension
 
-A native GNOME productivity extension for Linux support technicians that behaves similarly to a modern clipboard manager popup and is optimized for fast multi-ticket workflows.
+A native GNOME Shell extension for support technicians to manage tickets directly from the top panel. Behaves like a clipboard manager popup — fast, keyboard-friendly, and optimized for multi-ticket workflows.
 
 ## Features
 
-- **Quick Panel Access**: Click the ticket icon in the top panel to open the ticket manager popup
-- **Ticket Management**: Create, edit, and delete support tickets
-- **Search**: Filter tickets by title, description, ID, category, or assignee
-- **Status Tracking**: Track ticket status (Open, In Progress, Pending, Resolved, Closed)
-- **Priority Levels**: Set priority (Low, Medium, High, Urgent)
-- **URL Support**: Open external ticket URLs directly from the popup
-- **Modern UI**: Clipboard manager-style popup with smooth interactions
+- **Alt+T Toggle** — keyboard shortcut opens/closes the popup from anywhere
+- **Inline Add Form** — click "+ Add" to add a ticket directly in the popup (ID, URL, status selection)
+- **5 Statuses** — On Hold, Answered, In Progress, Closed, Sales/Billing with color-coded badges
+- **Search Bar** — filter tickets by ID, URL, or description
+- **Clickable URLs** — open ticket links directly in your browser
+- **Edit / Delete** — pencil icon opens edit dialog, trash icon removes with confirmation
+- **Settings Panel** — gear icon opens width stepper (280–700px) + copyright
+- **Persistent Storage** — tickets saved to `tickets.json`, settings to `settings.json`
 
 ## Requirements
 
-- GNOME Shell 45+
-- GTK 4
-- JavaScript (GJS)
+- GNOME Shell 42+
+- GJS (GNOME JavaScript)
 
 ## Installation
 
-### 1. Copy Extension to Local Directory
-
 ```bash
+# 1. Create extension directory
 mkdir -p ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech
-cp -r . ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/
+
+# 2. Copy extension files
+cp extension.js stylesheet.css metadata.json \
+   ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/
+
+# 3. Copy and compile GSettings schema (required for keyboard shortcut)
+cp -r schemas ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/
+glib-compile-schemas ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/schemas/
+
+# 4. Restart GNOME Shell (Alt+F2 → r → Enter)
 ```
 
-Or use the install script:
+### Enable
 
-```bash
-./install.sh
-```
-
-### 2. Enable the Extension
-
-#### Method A: Using GNOME Extensions App
-1. Open "Extensions" app
-2. Find "Ticket Manager" in the list
-3. Toggle it ON
-
-#### Method B: Using gnome-extensions Command
 ```bash
 gnome-extensions enable ticket-manager@support.tech
 ```
 
-### 3. Reload GNOME Shell
-
-Press `Alt+F2`, type `r`, and press Enter to restart GNOME Shell.
-
-Alternatively, log out and log back in.
-
 ## Usage
 
-### Opening Ticket Manager
-- **Left Click** on the ticket icon in the top-right panel to open the popup
-- **Right Click** for quick actions menu
+### Opening / Closing
+- Press **Alt+T** to toggle the popup
+- Click the ticket icon (`emblem-documents`) in the top panel
 
 ### Adding a Ticket
-1. Click the ticket icon to open the popup
-2. Click the **+ Add Ticket** button
-3. Fill in the ticket details (title, description, status, priority, etc.)
-4. Click **Create**
+1. Open the popup
+2. Click **+ Add** (replaces the search + list with an inline form)
+3. Enter an **ID** (optional) and **URL**
+4. Click a **status button** to select it
+5. Click **Create** to save
 
-### Viewing a Ticket
-- Click on any ticket row to open its URL (if set)
-- Click the **Open URL** button if available
+### Searching
+- Type in the search bar to filter tickets by ID, URL, or description
+- Press **Esc** or click **Cancel** to clear the add form
 
-### Searching Tickets
-- Type in the search bar to filter tickets
-- Press `Ctrl+F` to focus the search bar
-- Search matches: title, description, ID, category, assignee
+### Editing a Ticket
+- Click the **pencil icon** on any ticket row
+- A modal dialog opens where you can change the ID, URL, and status
+- Click **Save** to confirm
 
 ### Deleting a Ticket
-- Hover over a ticket and click the trash icon
-- Confirm the deletion in the dialog
+- Click the **trash icon** on any ticket row
+- Confirm deletion in the modal dialog
 
-### Keyboard Shortcuts
-- `Esc`: Close popup
-- `Ctrl+F`: Focus search
-- `Enter`: Open selected ticket
+### Adjusting Width
+- Click the **gear icon** in the popup header
+- Use the **[–]** and **[+]** buttons to adjust the popup width (280–700px)
+- Width is saved automatically
 
-## Troubleshooting
+## Keyboard Shortcuts
 
-### Extension Not Appearing
-
-1. Check if the extension is enabled:
-   ```bash
-   gnome-extensions list | grep ticket
-   ```
-
-2. Check for errors:
-   ```bash
-   journalctl -f -o cat /usr/bin/gnome-shell | grep -i "ticket"
-   ```
-
-3. Check extension log:
-   ```bash
-   journalctl -f -o cat /usr/bin/gnome-shell | grep "Ticket Manager"
-   ```
-
-### Extension Crashes
-
-If the extension causes GNOME Shell to crash:
-
-1. Boot into recovery mode
-2. Remove the extension:
-   ```bash
-   rm -rf ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech
-   ```
-3. Reboot normally
-
-### Icon Not Showing
-
-Ensure the icon file exists:
-```bash
-ls -la ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/icons/
-```
-
-### Tickets Not Saving
-
-Check storage permissions:
-```bash
-ls -la ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/
-chmod 755 ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/
-```
-
-## Debugging
-
-### View Extension Logs
-```bash
-journalctl -f -o cat /usr/bin/gnome-shell
-```
-
-This shows all GNOME Shell logs in real-time. Look for:
-- `[Ticket Manager]`
-- Errors related to `ticket-manager`
-
-### Enable Debug Mode
-Edit `extension.js` and change the log level in relevant sections to see more detailed output.
-
-### Check Storage File
-```bash
-cat ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/tickets.json
-```
+| Shortcut | Action |
+|----------|--------|
+| `Alt+T` | Toggle popup open/closed |
+| `Esc` | Close popup / cancel add form |
 
 ## Project Structure
 
 ```
 ticket-manager@support.tech/
-├── extension.js          # Main entry point
-├── metadata.json        # Extension metadata
-├── stylesheet.css       # GTK styles
-├── prefs.js             # Preferences panel
-├── utils/
-│   ├── constants.js    # Application constants
-│   ├── storage.js      # JSON persistence
-│   ├── validators.js   # Input validation
-│   └── helpers.js      # Utility functions
-├── ui/
-│   ├── popupMenu.js    # Main popup UI
-│   ├── searchBar.js    # Search component
-│   ├── ticketRow.js    # Ticket display row
-│   └── statusBadge.js  # Status/priority badges
-├── dialogs/
-│   ├── addTicketDialog.js  # Add/edit ticket dialog
-│   └── confirmDialog.js     # Confirmation dialogs
-└── icons/
-    └── ticket-symbolic.svg  # Panel icon
+├── extension.js       # Main extension (indicator, popup, storage, all inline)
+├── stylesheet.css     # St widget styles (status colors, buttons, forms)
+├── metadata.json      # Extension metadata (UUID, shell versions, schema ref)
+└── schemas/
+    ├── org.gnome.shell.extensions.ticket-manager.gschema.xml
+    ├── org.gnome.shell.extensions.ticket-manager.gschema.valid
+    └── gschemas.compiled
+```
+
+## Troubleshooting
+
+### Extension not loading
+```bash
+journalctl -f -o cat /usr/bin/gnome-shell | grep -i "\[TM\]"
+```
+
+### Re-enable after crash
+```bash
+gnome-extensions disable ticket-manager@support.tech
+gnome-extensions enable ticket-manager@support.tech
+```
+
+### Reset storage
+```bash
+rm ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/tickets.json
+rm ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/settings.json
 ```
 
 ## Uninstall
 
 ```bash
-# Disable the extension
 gnome-extensions disable ticket-manager@support.tech
-
-# Remove the extension
 rm -rf ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech
-
-# Restart GNOME Shell (Alt+F2 -> r)
+# Restart GNOME Shell (Alt+F2 → r → Enter)
 ```
 
 ## License
 
-MIT License
+MIT
 
 ## Author
 
-Linux Support Team
-
-## Version
-
-1.0.0
+Karthik | [github.com/karthik-ka](https://github.com/karthik-ka)
