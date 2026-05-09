@@ -184,66 +184,70 @@ var TicketIndicator = GObject.registerClass(
         }
 
         _showAddDialog() {
-            const dialog = new ModalDialog.ModalDialog({ styleClass: 'ticket-dialog' });
-            const content = new St.BoxLayout({ vertical: true, style_class: 'dialog-content' });
+            const dialog = new ModalDialog.ModalDialog({
+                styleClass: 'ticket-dialog',
+                destroyOnClose: false,
+                shellReactive: true,
+                shouldFadeIn: false,
+                shouldFadeOut: false,
+            });
 
-            content.add_child(new St.Label({ text: 'Add Ticket', style_class: 'dialog-title' }));
-
-            content.add_child(new St.Label({ text: 'Title', style_class: 'dialog-field-label' }));
-            const titleEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
-            titleEntry.clutter_text.set_activates_default(true);
-            content.add_child(titleEntry);
-
-            content.add_child(new St.Label({ text: 'Description', style_class: 'dialog-field-label' }));
-            const descEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
-            content.add_child(descEntry);
-
-            content.add_child(new St.Label({ text: 'Status', style_class: 'dialog-field-label' }));
-            const statusBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
-            const statuses = [['open', 'Open'], ['in_progress', 'In Progress'], ['pending', 'Pending'], ['resolved', 'Resolved'], ['closed', 'Closed']];
             let selStatus = 'open';
-            statuses.forEach(([val, label]) => {
-                const btn = new St.Button({ label: label, style_class: 'opt-btn' + (val === 'open' ? ' selected' : ''), reactive: true });
+            let selPriority = 'medium';
+
+            const titleEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
+            dialog.setInitialKeyFocus(titleEntry.clutter_text);
+
+            const descEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
+            const urlEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
+
+            const statusBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
+            [['open', 'Open'], ['in_progress', 'In Progress'], ['pending', 'Pending'], ['resolved', 'Resolved'], ['closed', 'Closed']].forEach(([val, label]) => {
+                const btn = new St.Button({ label, style_class: 'opt-btn' + (val === 'open' ? ' selected' : ''), reactive: true });
                 btn._val = val;
                 btn.connect('clicked', () => { statusBox.get_children().forEach(c => c.remove_style_class_name('selected')); btn.add_style_class_name('selected'); selStatus = val; });
                 statusBox.add_child(btn);
             });
-            content.add_child(statusBox);
 
-            content.add_child(new St.Label({ text: 'Priority', style_class: 'dialog-field-label' }));
             const priorityBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
-            let selPriority = 'medium';
             [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['urgent', 'Urgent']].forEach(([val, label]) => {
-                const btn = new St.Button({ label: label, style_class: 'opt-btn' + (val === 'medium' ? ' selected' : ''), reactive: true });
+                const btn = new St.Button({ label, style_class: 'opt-btn' + (val === 'medium' ? ' selected' : ''), reactive: true });
                 btn._val = val;
                 btn.connect('clicked', () => { priorityBox.get_children().forEach(c => c.remove_style_class_name('selected')); btn.add_style_class_name('selected'); selPriority = val; });
                 priorityBox.add_child(btn);
             });
-            content.add_child(priorityBox);
 
-            content.add_child(new St.Label({ text: 'URL', style_class: 'dialog-field-label' }));
-            const urlEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
-            content.add_child(urlEntry);
+            const layout = dialog.contentLayout;
+            layout.add_child(new St.Label({ text: 'Add Ticket', style_class: 'dialog-title' }));
+            layout.add_child(new St.Label({ text: 'Title', style_class: 'dialog-field-label' }));
+            layout.add_child(titleEntry);
+            layout.add_child(new St.Label({ text: 'Description', style_class: 'dialog-field-label' }));
+            layout.add_child(descEntry);
+            layout.add_child(new St.Label({ text: 'Status', style_class: 'dialog-field-label' }));
+            layout.add_child(statusBox);
+            layout.add_child(new St.Label({ text: 'Priority', style_class: 'dialog-field-label' }));
+            layout.add_child(priorityBox);
+            layout.add_child(new St.Label({ text: 'URL', style_class: 'dialog-field-label' }));
+            layout.add_child(urlEntry);
 
-            const btnBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-buttons' });
-            btnBox.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
-            const cancelBtn = new St.Button({ label: 'Cancel', style_class: 'dialog-cancel-btn', reactive: true });
-            cancelBtn.connect('clicked', () => dialog.close());
-            btnBox.add_child(cancelBtn);
-            const saveBtn = new St.Button({ label: 'Create', style_class: 'dialog-save-btn', reactive: true });
-            saveBtn.connect('clicked', () => {
-                const title = titleEntry.get_text().trim();
-                if (!title) return;
-                this._storage.add({ title, description: descEntry.get_text(), status: selStatus, priority: selPriority, url: urlEntry.get_text() });
-                dialog.close();
-                this._loadTickets();
+            dialog.addButton({
+                label: 'Cancel',
+                action: () => { dialog.close(global.get_current_time()); },
+                key: Clutter.KEY_Escape,
             });
-            btnBox.add_child(saveBtn);
-            content.add_child(btnBox);
+            dialog.addButton({
+                label: 'Create',
+                action: () => {
+                    const title = titleEntry.get_text().trim();
+                    if (!title) return;
+                    this._storage.add({ title, description: descEntry.get_text(), status: selStatus, priority: selPriority, url: urlEntry.get_text() });
+                    dialog.close(global.get_current_time());
+                    this._loadTickets();
+                },
+            });
 
-            dialog.contentLayout.add_child(content);
-            dialog.connect('open-state-changed', (d, open) => { if (open) global.stage.set_key_focus(titleEntry.clutter_text); });
-            dialog.open(global.get_current_time());
+            dialog.open(global.get_current_time(), false);
+            dialog.show();
         }
     }
 );
