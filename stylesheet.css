@@ -95,19 +95,15 @@
     text-decoration: underline;
 }
 
-/* ─── Status Button ─── */
+/* ─── Status Label ─── */
 
-.status-btn {
+.status-label {
     font-size: 10px;
     font-weight: bold;
     padding: 3px 8px;
     border-radius: 4px;
     min-width: 70px;
     text-align: center;
-}
-
-.status-btn:hover {
-    filter: brightness(1.2);
 }
 
 .status-open {
@@ -145,6 +141,18 @@
 .delete-button:hover {
     color: #c01c28;
     background-color: rgba(192, 28, 40, 0.15);
+}
+
+/* Edit button */
+.edit-button {
+    color: #77767b;
+    padding: 3px;
+    border-radius: 3px;
+}
+
+.edit-button:hover {
+    color: #3584e4;
+    background-color: rgba(53, 132, 228, 0.15);
 }
 
 /* Footer */

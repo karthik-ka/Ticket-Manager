@@ -48,7 +48,7 @@ var Storage = {
         const list = this.load();
         const now = Date.now();
         const t = {
-            id: 'TKT-' + now.toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+            id: data.id || ('TKT-' + now.toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase()),
             title: data.title || '',
             description: data.description || '',
             status: data.status || 'open',
@@ -104,7 +104,7 @@ function openUrl(url) {
 
 // ─── Ticket Row ─────────────────────────────────────────────────────────
 
-function createTicketRow(ticket, onDelete, onStatusChange) {
+function createTicketRow(ticket, onDelete, onEdit) {
     const row = new St.BoxLayout({
         vertical: false,
         style_class: 'ticket-row',
@@ -146,29 +146,26 @@ function createTicketRow(ticket, onDelete, onStatusChange) {
 
     row.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
 
-    // Status dropdown
+    // Status label
     const statusVal = ticket.status || 'open';
-    const statusBtn = new St.Button({
-        label: STATUSES[statusVal]?.label || 'Open',
-        style_class: 'status-btn status-' + statusVal,
-        reactive: true,
-        can_focus: true,
+    const statusLabel = new St.Label({
+        text: STATUSES[statusVal]?.label || 'Open',
+        style_class: 'status-label status-' + statusVal,
         y_align: Clutter.ActorAlign.CENTER,
     });
-    statusBtn.connect('button-press-event', (actor, event) => {
-        const menu = new PopupMenu.PopupMenu(actor, event.get_x(), event.get_y());
-        Object.entries(STATUSES).forEach(([key, st]) => {
-            const item = new PopupMenu.PopupMenuItem(st.label);
-            item.connect('activate', () => {
-                if (onStatusChange) onStatusChange(ticket, key);
-                menu.close();
-            });
-            menu.addMenuItem(item);
-        });
-        menu.open(true);
-        return Clutter.EVENT_STOP;
+    row.add_child(statusLabel);
+
+    // Edit button
+    const editBtn = new St.Button({
+        style_class: 'edit-button',
+        child: new St.Icon({ icon_name: 'document-edit-symbolic', icon_size: 12 }),
+        reactive: true,
+        y_align: Clutter.ActorAlign.CENTER,
     });
-    row.add_child(statusBtn);
+    editBtn.connect('clicked', () => {
+        if (onEdit) onEdit(ticket);
+    });
+    row.add_child(editBtn);
 
     // Delete button
     const delBtn = new St.Button({
@@ -278,9 +275,8 @@ var TicketIndicator = GObject.registerClass(
                         storage.remove(ticket.id);
                         this._loadTickets();
                     },
-                    (ticket, newStatus) => {
-                        storage.update(ticket.id, { status: newStatus });
-                        this._loadTickets();
+                    (ticket) => {
+                        this._showEditDialog(ticket);
                     }
                 ));
             });
@@ -319,6 +315,73 @@ var TicketIndicator = GObject.registerClass(
             dialog.show();
         }
 
+        _showEditDialog(ticket) {
+            const dialog = new ModalDialog.ModalDialog({
+                styleClass: 'ticket-dialog',
+                destroyOnClose: false,
+                shellReactive: true,
+                shouldFadeIn: false,
+                shouldFadeOut: false,
+            });
+
+            let selStatus = ticket.status || 'open';
+
+            const titleEntry = new St.Entry({ text: ticket.title || '', style_class: 'dialog-entry', can_focus: true });
+            dialog.setInitialKeyFocus(titleEntry.clutter_text);
+
+            const urlEntry = new St.Entry({ text: ticket.url || '', style_class: 'dialog-entry', can_focus: true });
+
+            const layout = dialog.contentLayout;
+            layout.add_child(new St.Label({ text: 'Edit Ticket', style_class: 'dialog-title' }));
+
+            layout.add_child(new St.Label({ text: 'Title', style_class: 'dialog-field-label' }));
+            layout.add_child(titleEntry);
+
+            layout.add_child(new St.Label({ text: 'URL', style_class: 'dialog-field-label' }));
+            layout.add_child(urlEntry);
+
+            layout.add_child(new St.Label({ text: 'Status', style_class: 'dialog-field-label' }));
+            const statusBox = new St.BoxLayout({ vertical: false, style_class: 'dialog-options' });
+            Object.entries(STATUSES).forEach(([key, st]) => {
+                const btn = new St.Button({
+                    label: st.label,
+                    style_class: 'opt-btn' + (key === selStatus ? ' selected' : ''),
+                    reactive: true,
+                });
+                btn._val = key;
+                btn.connect('clicked', () => {
+                    statusBox.get_children().forEach(c => c.remove_style_class_name('selected'));
+                    btn.add_style_class_name('selected');
+                    selStatus = key;
+                });
+                statusBox.add_child(btn);
+            });
+            layout.add_child(statusBox);
+
+            dialog.addButton({
+                label: 'Cancel',
+                action: () => dialog.close(global.get_current_time()),
+                key: Clutter.KEY_Escape,
+            });
+            dialog.addButton({
+                label: 'Save',
+                action: () => {
+                    const title = titleEntry.get_text().trim();
+                    if (!title) return;
+                    storage.update(ticket.id, {
+                        title,
+                        url: urlEntry.get_text().trim(),
+                        status: selStatus,
+                    });
+                    dialog.close(global.get_current_time());
+                    this._loadTickets();
+                },
+            });
+
+            dialog.open(global.get_current_time(), false);
+            dialog.show();
+        }
+
         _showAddDialog() {
             const dialog = new ModalDialog.ModalDialog({
                 styleClass: 'ticket-dialog',
@@ -330,6 +393,8 @@ var TicketIndicator = GObject.registerClass(
 
             let selStatus = 'open';
 
+            const idEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
+
             const titleEntry = new St.Entry({ style_class: 'dialog-entry', can_focus: true });
             dialog.setInitialKeyFocus(titleEntry.clutter_text);
 
@@ -337,6 +402,9 @@ var TicketIndicator = GObject.registerClass(
 
             const layout = dialog.contentLayout;
             layout.add_child(new St.Label({ text: 'Add Ticket', style_class: 'dialog-title' }));
+
+            layout.add_child(new St.Label({ text: 'Ticket ID (leave empty for auto-generate)', style_class: 'dialog-field-label' }));
+            layout.add_child(idEntry);
 
             layout.add_child(new St.Label({ text: 'Title', style_class: 'dialog-field-label' }));
             layout.add_child(titleEntry);
@@ -373,6 +441,7 @@ var TicketIndicator = GObject.registerClass(
                     const title = titleEntry.get_text().trim();
                     if (!title) return;
                     storage.add({
+                        id: idEntry.get_text().trim() || undefined,
                         title,
                         url: urlEntry.get_text().trim(),
                         status: selStatus,
