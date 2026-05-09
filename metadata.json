@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "author": "Linux Support Team",
     "url": "https://github.com/support-team/ticket-manager",
+    "settings-schema": "org.gnome.shell.extensions.ticket-manager",
     "shell-version": [
         "42",
         "43",

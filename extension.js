@@ -1,6 +1,6 @@
 'use strict';
 
-const { Clutter, St, GObject, Gio, GLib } = imports.gi;
+const { Clutter, St, GObject, Gio, GLib, Meta, Shell } = imports.gi;
 
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
@@ -17,6 +17,47 @@ const STATUSES = {
     in_progress: { label: 'In Progress', color: '#c01c28' },
     closed:      { label: 'Closed',      color: '#26a269' },
     sales_billing:{label: 'Sales/Billing', color: '#e5a50a' },
+};
+
+const WIDTH_RANGE = { min: 280, max: 700, step: 20 };
+
+// ─── Settings Storage ────────────────────────────────────────────────────
+
+var AppSettings = {
+    _path: null,
+    defaults: {
+        width: '400',
+    },
+    _ensure() {
+        if (this._path) return;
+        const dir = GLib.build_filenamev([GLib.get_user_data_dir(), Me.uuid]);
+        GLib.mkdir_with_parents(dir, 0o755);
+        this._path = GLib.build_filenamev([dir, 'settings.json']);
+    },
+    load() {
+        this._ensure();
+        if (!GLib.file_test(this._path, GLib.FileTest.EXISTS)) return Object.assign({}, this.defaults);
+        try {
+            const [ok, data] = GLib.file_get_contents(this._path);
+            if (!ok) return Object.assign({}, this.defaults);
+            return Object.assign({}, this.defaults, JSON.parse(new TextDecoder('utf-8').decode(data)));
+        } catch (e) { return Object.assign({}, this.defaults); }
+    },
+    save(data) {
+        this._ensure();
+        const merged = Object.assign({}, this.defaults, data);
+        try {
+            return GLib.file_set_contents(this._path, new TextEncoder().encode(JSON.stringify(merged, null, 2)));
+        } catch (e) { return false; }
+    },
+    get(key) {
+        return this.load()[key];
+    },
+    set(key, value) {
+        const s = this.load();
+        s[key] = value;
+        return this.save(s);
+    },
 };
 
 // ─── Storage ───────────────────────────────────────────────────────────
@@ -114,6 +155,7 @@ function createTicketRow(ticket, onDelete, onEdit) {
     // Left vertical block: ID (metadata) + URL (main)
     const leftBlock = new St.BoxLayout({
         vertical: true,
+        x_expand: true,
         x_align: Clutter.ActorAlign.FILL,
     });
 
@@ -125,12 +167,13 @@ function createTicketRow(ticket, onDelete, onEdit) {
     });
     leftBlock.add_child(idLabel);
 
-    // URL — main clickable element
+    // URL — main clickable element (St.Label auto-clips with ellipsis)
     const urlText = ticket.url || '';
     const urlWidget = new St.Label({
-        text: urlText.length > 40 ? urlText.substring(0, 37) + '...' : urlText,
+        text: urlText,
         style_class: 'ticket-url-main' + (urlText ? ' clickable' : ' no-url'),
         reactive: !!urlText,
+        x_expand: true,
         y_align: Clutter.ActorAlign.START,
     });
     if (urlText) {
@@ -199,13 +242,26 @@ var TicketIndicator = GObject.registerClass(
         _buildMenu() {
             this.menu.removeAll();
 
+            // Inner container for all UI elements
+            this._innerContainer = new St.BoxLayout({ vertical: true });
+            this.menu.box.add_actor(this._innerContainer);
+
             // ── Header ──
             const header = new St.BoxLayout({ vertical: false, style_class: 'popup-header' });
             const title = new St.Label({ text: 'Ticket Manager', style_class: 'popup-title', y_align: Clutter.ActorAlign.CENTER });
             header.add_child(title);
             this._statsLbl = new St.Label({ text: '', style_class: 'popup-stats', y_align: Clutter.ActorAlign.CENTER });
             header.add_child(this._statsLbl);
-            this.menu.box.add_actor(header);
+            header.add_child(new St.Widget({ x_expand: true }));
+            const settingsBtn = new St.Button({
+                style_class: 'settings-gear',
+                child: new St.Icon({ icon_name: 'emblem-system-symbolic', icon_size: 14 }),
+                reactive: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            settingsBtn.connect('clicked', () => this._showSettings());
+            header.add_child(settingsBtn);
+            this._innerContainer.add_actor(header);
 
             // ── Search ──
             this._searchEntry = new St.Entry({
@@ -217,7 +273,7 @@ var TicketIndicator = GObject.registerClass(
                 this._searchQuery = this._searchEntry.get_text();
                 this._renderList();
             });
-            this.menu.box.add_actor(this._searchEntry);
+            this._innerContainer.add_actor(this._searchEntry);
 
             // ── Scrollable List ──
             const scroll = new St.ScrollView({
@@ -228,13 +284,18 @@ var TicketIndicator = GObject.registerClass(
             });
             this._list = new St.BoxLayout({ vertical: true, style_class: 'ticket-list', x_expand: true, x_align: Clutter.ActorAlign.FILL });
             scroll.add_actor(this._list);
-            this.menu.box.add_actor(scroll);
+            this._innerContainer.add_actor(scroll);
             this._scrollView = scroll;
 
             // ── Inline Add Form (hidden by default) ──
             this._addForm = this._createAddForm();
             this._addForm.hide();
-            this.menu.box.add_actor(this._addForm);
+            this._innerContainer.add_actor(this._addForm);
+
+            // ── Settings Panel (hidden by default) ──
+            this._settingsPanel = this._createSettingsPanel();
+            this._settingsPanel.hide();
+            this._innerContainer.add_actor(this._settingsPanel);
 
             // ── Footer ──
             const footer = new St.BoxLayout({ vertical: false, style_class: 'popup-footer' });
@@ -249,7 +310,11 @@ var TicketIndicator = GObject.registerClass(
             addBtn.connect('clicked', () => this._showAddForm());
             footer.add_child(addBtn);
 
-            this.menu.box.add_actor(footer);
+            this._innerContainer.add_actor(footer);
+
+            // Apply saved width
+            const savedWidth = parseInt(AppSettings.get('width'), 10);
+            if (!isNaN(savedWidth)) this.menu.actor.set_width(Math.max(WIDTH_RANGE.min, Math.min(WIDTH_RANGE.max, savedWidth)));
 
             this._loadTickets();
         }
@@ -468,6 +533,119 @@ var TicketIndicator = GObject.registerClass(
             this._searchEntry.show();
             this._scrollView.show();
         }
+
+        // ─── Settings Panel ──────────────────────────────────────────────
+
+        _createSettingsPanel() {
+            const box = new St.BoxLayout({ vertical: true, style_class: 'settings-panel' });
+
+            // Current width value
+            let currentWidth = parseInt(AppSettings.get('width'), 10);
+            if (isNaN(currentWidth)) currentWidth = 400;
+
+            // Back button + title
+            const topRow = new St.BoxLayout({ vertical: false });
+            const backBtn = new St.Button({
+                label: '\u2190  Settings',
+                style_class: 'settings-back-btn',
+                reactive: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            backBtn.connect('clicked', () => this._hideSettings());
+            topRow.add_child(backBtn);
+            box.add_child(topRow);
+
+            // ── Width Stepper ──
+            box.add_child(new St.Label({ text: 'Window Width', style_class: 'settings-section-title' }));
+            const widthRow = new St.BoxLayout({ vertical: false, style_class: 'settings-width-row' });
+            const decBtn = new St.Button({ label: '\u2212', style_class: 'settings-step-btn', reactive: true });
+            const widthVal = new St.Label({ text: currentWidth + 'px', style_class: 'settings-width-value', x_align: Clutter.ActorAlign.CENTER });
+            const incBtn = new St.Button({ label: '+', style_class: 'settings-step-btn', reactive: true });
+
+            decBtn.connect('clicked', () => {
+                currentWidth = Math.max(WIDTH_RANGE.min, currentWidth - WIDTH_RANGE.step);
+                widthVal.set_text(currentWidth + 'px');
+                this.menu.actor.set_width(currentWidth);
+                AppSettings.set('width', currentWidth.toString());
+            });
+            incBtn.connect('clicked', () => {
+                currentWidth = Math.min(WIDTH_RANGE.max, currentWidth + WIDTH_RANGE.step);
+                widthVal.set_text(currentWidth + 'px');
+                this.menu.actor.set_width(currentWidth);
+                AppSettings.set('width', currentWidth.toString());
+            });
+
+            widthRow.add_child(decBtn);
+            widthRow.add_child(new St.Widget({ x_expand: true }));
+            widthRow.add_child(widthVal);
+            widthRow.add_child(new St.Widget({ x_expand: true }));
+            widthRow.add_child(incBtn);
+            box.add_child(widthRow);
+
+            // ── Shortcut (read-only) ──
+            box.add_child(new St.Label({ text: 'Keyboard Shortcut', style_class: 'settings-section-title' }));
+            const shortcutRow = new St.BoxLayout({ vertical: false, style_class: 'settings-shortcut-row' });
+            const shortcutLabel = new St.Label({ text: 'Toggle: ', style_class: 'settings-shortcut-label' });
+            const shortcutVal = new St.Label({ text: '<Alt>T', style_class: 'settings-shortcut-value' });
+            shortcutRow.add_child(shortcutLabel);
+            shortcutRow.add_child(shortcutVal);
+            box.add_child(shortcutRow);
+
+            // ── Copyright ──
+            const copyBox = new St.BoxLayout({ vertical: false, style_class: 'settings-copyright-box' });
+            const copyLabel = new St.Label({
+                text: '\u00A9 Karthik | github.com/karthik-ka',
+                style_class: 'settings-copyright',
+            });
+            copyBox.add_child(copyLabel);
+            box.add_child(copyBox);
+
+            return box;
+        }
+
+        _showSettings() {
+            this._scrollView.hide();
+            this._searchEntry.hide();
+            this._addForm.hide();
+            this._settingsPanel.show();
+            this._settingsPanel.grab_key_focus();
+        }
+
+        _hideSettings() {
+            this._settingsPanel.hide();
+            this._searchEntry.show();
+            this._scrollView.show();
+        }
+
+        _toggle() {
+            if (this.menu.isOpen)
+                this.menu.close(global.get_current_time());
+            else
+                this.menu.open(true);
+        }
+
+        _registerShortcut() {
+            try {
+                const gsettings = ExtensionUtils.getSettings();
+                Main.wm.addKeybinding(
+                    'toggle-shortcut',
+                    gsettings,
+                    Meta.KeyBindingFlags.NONE,
+                    Shell.ActionMode.NORMAL | Shell.ActionMode.SYSTEM_MODAL,
+                    () => this._toggle()
+                );
+            } catch (e) {
+                log('[TM] Failed to register shortcut: ' + e);
+            }
+        }
+
+        _unregisterShortcut() {
+            try {
+                Main.wm.removeKeybinding('toggle-shortcut');
+            } catch (e) {
+                log('[TM] Failed to unregister shortcut: ' + e);
+            }
+        }
     }
 );
 
@@ -482,12 +660,14 @@ function enable() {
     if (indicator) return;
     indicator = new TicketIndicator();
     Main.panel.addToStatusArea('ticket-manager', indicator, 0, 'right');
+    indicator._registerShortcut();
     log('[TM] enabled');
 }
 
 function disable() {
     log('[TM] disable');
     if (indicator) {
+        indicator._unregisterShortcut();
         indicator.destroy();
         indicator = null;
     }
