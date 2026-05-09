@@ -114,7 +114,7 @@ function createTicketRow(ticket, onDelete, onEdit) {
     // Left vertical block: ID (metadata) + URL (main)
     const leftBlock = new St.BoxLayout({
         vertical: true,
-        x_expand: true,
+        x_align: Clutter.ActorAlign.FILL,
     });
 
     // Ticket ID — subtle metadata
@@ -127,25 +127,23 @@ function createTicketRow(ticket, onDelete, onEdit) {
 
     // URL — main clickable element
     const urlText = ticket.url || '';
-    if (ticket.url) {
-        const urlBtn = new St.Button({
-            label: urlText.length > 45 ? urlText.substring(0, 42) + '...' : urlText,
-            style_class: 'ticket-url-main clickable',
-            reactive: true,
-            y_align: Clutter.ActorAlign.START,
+    const urlWidget = new St.Label({
+        text: urlText.length > 40 ? urlText.substring(0, 37) + '...' : urlText,
+        style_class: 'ticket-url-main' + (urlText ? ' clickable' : ' no-url'),
+        reactive: !!urlText,
+        y_align: Clutter.ActorAlign.START,
+    });
+    if (urlText) {
+        urlWidget.connect('button-press-event', () => {
+            openUrl(ticket.url);
+            return Clutter.EVENT_STOP;
         });
-        urlBtn.connect('clicked', () => openUrl(ticket.url));
-        leftBlock.add_child(urlBtn);
-    } else {
-        const urlLabel = new St.Label({
-            text: '',
-            style_class: 'ticket-url-main no-url',
-            y_align: Clutter.ActorAlign.START,
-        });
-        leftBlock.add_child(urlLabel);
     }
+    leftBlock.add_child(urlWidget);
 
     row.add_child(leftBlock);
+
+    row.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
 
     // Status label
     const statusVal = ticket.status || 'in_progress';
@@ -222,9 +220,13 @@ var TicketIndicator = GObject.registerClass(
             this.menu.box.add_actor(this._searchEntry);
 
             // ── Scrollable List ──
-            const scroll = new St.ScrollView({ style_class: 'ticket-scrollview', clip_to_allocation: true });
-            scroll.set_policy(0, 1); // NEVER, AUTOMATIC
-            this._list = new St.BoxLayout({ vertical: true, style_class: 'ticket-list' });
+            const scroll = new St.ScrollView({
+                style_class: 'ticket-scrollview',
+                clip_to_allocation: true,
+                hscrollbar_policy: St.PolicyType.NEVER,
+                vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            });
+            this._list = new St.BoxLayout({ vertical: true, style_class: 'ticket-list', x_expand: true, x_align: Clutter.ActorAlign.FILL });
             scroll.add_actor(this._list);
             this.menu.box.add_actor(scroll);
 
@@ -325,7 +327,7 @@ var TicketIndicator = GObject.registerClass(
                 shouldFadeOut: false,
             });
 
-            let selStatus = ticket.status || 'open';
+            let selStatus = ticket.status || 'in_progress';
 
             const urlEntry = new St.Entry({ text: ticket.url || '', style_class: 'dialog-entry', can_focus: true });
             dialog.setInitialKeyFocus(urlEntry.clutter_text);
