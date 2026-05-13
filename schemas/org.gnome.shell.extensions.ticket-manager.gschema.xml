@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.ticket-manager"
+          path="/org/gnome/shell/extensions/ticket-manager/">
+    <key name="toggle-shortcut" type="as">
+      <default>['&lt;Alt&gt;t']</default>
+      <summary>Toggle ticket manager</summary>
+      <description>Keyboard shortcut to show/hide the ticket manager panel</description>
+    </key>
+  </schema>
+</schemalist>

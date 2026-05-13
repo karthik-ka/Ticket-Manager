@@ -1,0 +1,158 @@
+# Ticket Manager — Project Memory
+
+## Stack
+- GNOME Shell extension (42+), GJS, St widgets, Clutter
+- Single-file architecture in `extension.js`
+- CSS styling via `stylesheet.css`
+- Data persisted as JSON files in `~/.local/share/gnome-shell/extensions/ticket-manager@support.tech/`
+
+## Key Rules
+
+### JS / Shell API
+- `const Main = imports.ui.main` (NOT destructuring `{ Main } = imports.ui`)
+- `init()` returns nothing (undefined); top-level `enable()`/`disable()` control lifecycle
+- `menu.box.add_actor()` instead of `menu.addActor()`
+- `St.IconType` does NOT exist — omit `iconType` from St.Icon props
+- `St.Label.set_tooltip_text()` not available — use `St.Button` with `set_tooltip_text`
+- ModalDialog from `imports.ui.modalDialog`
+- `ExtensionUtils.getSettings()` looks up schema via `settings-schema` key in `metadata.json`
+- `Clutter.ModifierType.CONTROL_MASK` (not `Clutter.CONTROL_MASK`)
+
+### Shortcut (Alt+T)
+- Registered via `Main.wm.addKeybinding()` with `Shell.ActionMode.NORMAL | Shell.ActionMode.SYSTEM_MODAL`
+- GSettings schema: `toggle-shortcut`, type `as`, default `['<Alt>t']`
+- Schema file: `schemas/org.gnome.shell.extensions.ticket-manager.gschema.xml`
+- Needs `glib-compile-schemas schemas/` after changes
+
+### Lifecycle
+- `enable()` creates TicketIndicator, adds to panel, registers shortcut
+- `disable()` unregisters shortcut, destroys indicator
+- On reload: `disable()` → `enable()`
+
+### Storage
+- `var Storage` defined as `{load, save, add, remove, removeAll, update}`
+- `const storage = Storage;` must appear AFTER `var Storage` definition (JS hoisting)
+- Data files: `tickets.json` + `settings.json`
+- Path: `GLib.build_filenamev([GLib.get_user_data_dir(), Me.uuid])`
+
+### Ticket Data Model
+```js
+{
+  id: string,       // optional, blank if omitted
+  title: '',        // unused (field removed)
+  url: string,
+  status: string,    // one of: onhold, answered, in_progress, closed, sales_billing
+  createdAt: timestamp,
+  updatedAt: timestamp
+}
+```
+Stored extra fields (priority, category, assignee, tags, description) from original model are preserved by `Storage.add()` but not exposed in UI.
+
+### Status Values
+| Key             | Label          | CSS class       | Color  |
+|-----------------|----------------|-----------------|--------|
+| `onhold`        | On Hold        | `status-onhold` | #3584e4 (blue) |
+| `answered`      | Answered       | `status-answered` | #ffffff (white) |
+| `in_progress`   | In Progress    | `status-in_progress` | #c01c28 (red) |
+| `closed`        | Closed         | `status-closed` | #26a269 (green) |
+| `sales_billing` | Sales/Billing  | `status-sales_billing` | #e5a50a (yellow) |
+
+### UI Architecture (popup menu layout)
+```
+Header: [Title "Ticket Manager"] [stats] [spacer] [gear icon]
+Search: [entry box]
+List:   [ScrollView > ticket rows (ID + URL vertical | status | edit | delete)]
+Add:    [inline form — replaces search+list when "+ Add" clicked]
+Footer: [Delete All] [spacer] [+ Add]
+```
+
+### Ticket Row Layout
+```
+[ticket-row]
+  [leftBlock: vertical]
+    [id metadata label]
+    [url label — clickable, reactive, auto-ellipsis via x_expand]
+  [spacer: x_expand]
+  [status label — colored badge]
+  [edit button — pencil icon]
+  [delete button — trash icon]
+```
+
+### Ticket Row Rules
+- URL is `St.Label` (NOT `St.Button`) with `reactive: true` — auto-ellipsis via `x_expand: true` avoids horizontal scroll
+- LeftBlock uses `x_expand: true` + spacer widget for width distribution
+- ID label uses `ticket-id-metadata` style (small, gray, monospace)
+- Edit button opens ModalDialog (pencil icon)
+- Delete button removes directly + re-renders (trash icon)
+
+### Add Form (inline, no modal)
+- Hidden by default; `_showAddForm()` hides search + list, shows form
+- Fields: ID (optional), URL (required), status buttons, Cancel, Create
+- `_hideAddForm()` hides form, shows search + list
+- Status buttons are `inline-opt-btn` with `selected` class for active
+
+### Settings Panel
+- Accessed via gear icon in header
+- Sections: Width stepper, Keyboard Shortcut (read-only `<Alt>T`), Copyright
+- Width persisted in `settings.json`, range 280–700px, step 20
+- Copyright: `© Karthik | github.com/karthik-ka`
+
+### Dialogs (both use ModalDialog)
+1. **Edit dialog** — ID/URL/status changes via `Storage.update(id, changes)`
+2. **Delete All confirmation** — `Storage.removeAll()`
+
+### CSS Conventions
+- Adwaita dark theme colors: backgrounds `#353535`, borders `#5e5c64`, text `#ffffff`
+- All in `stylesheet.css` — no theme overrides
+- Status label CSS: `.status-label` base + `.status-{key}` color class
+
+## Files
+
+### extension.js (~674 lines)
+All logic inline: indicator, popup menu, ticket rows, add form, settings, storage.
+
+### stylesheet.css (~433 lines)
+All St widget styling including status colors, buttons, forms, settings.
+
+### metadata.json
+- uuid: `ticket-manager@support.tech`
+- shell-version: 42, 43, 44, 45, 46
+- settings-schema: `org.gnome.shell.extensions.ticket-manager`
+
+### schemas/org.gnome.shell.extensions.ticket-manager.gschema.xml
+Key: `toggle-shortcut` (type `as`, default `['<Alt>t']`)
+
+### install.sh
+One-command installer; uses `SCRIPT_DIR` for path independence.
+Copies files, compiles schema, enables extension.
+Needs `glib-compile-schemas` (from `glib2` tools).
+
+### Directory
+```
+ticket-manager@support.tech/
+├── extension.js
+├── stylesheet.css
+├── metadata.json
+├── install.sh
+├── schemas/
+│   ├── org.gnome.shell.extensions.ticket-manager.gschema.xml
+│   └── gschemas.compiled
+```
+
+## Install Commands
+```bash
+mkdir -p ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech
+cp extension.js stylesheet.css metadata.json -t <dest>
+cp -r schemas <dest>/
+glib-compile-schemas <dest>/schemas/
+gnome-extensions enable ticket-manager@support.tech
+```
+Then `Alt+F2` → `r` → Enter.
+
+## Known Issues / Pitfalls
+- `const storage = Storage;` must be AFTER `var Storage = { ... }` (JS hoisting)
+- URL uses `St.Label` (not `St.Button`) to avoid horizontal scrollbar
+- Shortcut uses `Shell.ActionMode.NORMAL | Shell.ActionMode.SYSTEM_MODAL` because popup menu pushModal sets SYSTEM_MODAL
+- Alt-modified key events are intercepted by Mutter WM; WM keybinding is the only reliable way to catch them (stage handler would NOT work)
+- `PopupMenu` import must NOT be used (causes errors)
+- No `iconType` prop on `St.Icon` (doesn't exist in this GNOME version)
