@@ -38,12 +38,12 @@ sudo pacman -S glib2
 
 ## Installation
 
-Method 1: Run the ```./install.sh``` script from the file.
-
-OR
-
-Method 2:
 ```bash
+Quick install (from repo root)
+./install.sh
+
+# Or manually:
+
 # 1. Create extension directory
 mkdir -p ~/.local/share/gnome-shell/extensions/ticket-manager@support.tech
 
