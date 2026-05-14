@@ -19,7 +19,9 @@ const STATUSES = {
     sales_billing:{label: 'Sales/Billing', color: '#e5a50a' },
 };
 
-const WIDTH_RANGE = { min: 280, max: 700, step: 20 };
+const WIDTH_RANGE = { min: 250, max: 900, step: 1 };
+const HEIGHT_RANGE = { min: 200, max: 900, step: 1 };
+const FONT_SIZE_RANGE = { min: 9, max: 24, step: 1 };
 
 // ─── Settings Storage ────────────────────────────────────────────────────
 
@@ -27,6 +29,8 @@ var AppSettings = {
     _path: null,
     defaults: {
         width: '400',
+        height: '320',
+        fontSize: '13',
     },
     _ensure() {
         if (this._path) return;
@@ -304,6 +308,10 @@ var TicketIndicator = GObject.registerClass(
             deleteAllBtn.connect('clicked', () => this._confirmDeleteAll());
             footer.add_child(deleteAllBtn);
 
+            const exportBtn = new St.Button({ label: 'Export', style_class: 'export-btn', reactive: true });
+            exportBtn.connect('clicked', () => this._exportTickets());
+            footer.add_child(exportBtn);
+
             footer.add_child(new St.Widget({ x_expand: true, y_align: Clutter.ActorAlign.CENTER }));
 
             const addBtn = new St.Button({ label: '+ Add', style_class: 'add-btn', reactive: true });
@@ -315,6 +323,11 @@ var TicketIndicator = GObject.registerClass(
             // Apply saved width
             const savedWidth = parseInt(AppSettings.get('width'), 10);
             if (!isNaN(savedWidth)) this.menu.actor.set_width(Math.max(WIDTH_RANGE.min, Math.min(WIDTH_RANGE.max, savedWidth)));
+
+            const savedHeight = parseInt(AppSettings.get('height'), 10);
+            if (!isNaN(savedHeight)) this._scrollView.set_style('height: ' + Math.max(HEIGHT_RANGE.min, Math.min(HEIGHT_RANGE.max, savedHeight)) + 'px');
+
+            this._applyFontScale();
 
             this._loadTickets();
         }
@@ -356,6 +369,28 @@ var TicketIndicator = GObject.registerClass(
             });
         }
 
+        _exportTickets() {
+            const tickets = storage.load();
+            const lines = [];
+            for (const t of tickets) {
+                lines.push('#' + (t.id || ''));
+                lines.push(t.url || '');
+                lines.push('');
+            }
+            const content = lines.join('\n');
+
+            const tmpDir = GLib.get_tmp_dir();
+            const timestamp = Date.now();
+            const filePath = GLib.build_filenamev([tmpDir, 'tickets-export-' + timestamp + '.txt']);
+            try {
+                GLib.file_set_contents(filePath, new TextEncoder().encode(content));
+                const file = Gio.file_new_for_path(filePath);
+                Gio.AppInfo.launch_default_for_uri(file.get_uri(), null);
+            } catch (e) {
+                log('[TM] Failed to export tickets: ' + e.message);
+            }
+        }
+
         _confirmDeleteAll() {
             const dialog = new ModalDialog.ModalDialog({
                 styleClass: 'ticket-dialog',
@@ -364,6 +399,8 @@ var TicketIndicator = GObject.registerClass(
                 shouldFadeIn: false,
                 shouldFadeOut: false,
             });
+            const fPx = parseInt(AppSettings.get('fontSize'), 10) || 13;
+            dialog.contentLayout.set_style('font-size: ' + Math.max(FONT_SIZE_RANGE.min, Math.min(FONT_SIZE_RANGE.max, fPx)) + 'px');
             dialog.contentLayout.add_child(new St.Label({
                 text: 'Delete all tickets?',
                 style_class: 'dialog-title',
@@ -402,6 +439,9 @@ var TicketIndicator = GObject.registerClass(
 
             const urlEntry = new St.Entry({ text: ticket.url || '', style_class: 'dialog-entry', can_focus: true });
             dialog.setInitialKeyFocus(urlEntry.clutter_text);
+
+            const fPx = parseInt(AppSettings.get('fontSize'), 10) || 13;
+            dialog.contentLayout.set_style('font-size: ' + Math.max(FONT_SIZE_RANGE.min, Math.min(FONT_SIZE_RANGE.max, fPx)) + 'px');
 
             const layout = dialog.contentLayout;
             layout.add_child(new St.Label({ text: 'Edit Ticket', style_class: 'dialog-title' }));
@@ -539,9 +579,12 @@ var TicketIndicator = GObject.registerClass(
         _createSettingsPanel() {
             const box = new St.BoxLayout({ vertical: true, style_class: 'settings-panel' });
 
-            // Current width value
             let currentWidth = parseInt(AppSettings.get('width'), 10);
             if (isNaN(currentWidth)) currentWidth = 400;
+            let currentHeight = parseInt(AppSettings.get('height'), 10);
+            if (isNaN(currentHeight)) currentHeight = 320;
+            let currentFontSize = parseInt(AppSettings.get('fontSize'), 10);
+            if (isNaN(currentFontSize)) currentFontSize = 13;
 
             // Back button + title
             const topRow = new St.BoxLayout({ vertical: false });
@@ -555,32 +598,89 @@ var TicketIndicator = GObject.registerClass(
             topRow.add_child(backBtn);
             box.add_child(topRow);
 
-            // ── Width Stepper ──
+            // ── Width ──
             box.add_child(new St.Label({ text: 'Window Width', style_class: 'settings-section-title' }));
-            const widthRow = new St.BoxLayout({ vertical: false, style_class: 'settings-width-row' });
-            const decBtn = new St.Button({ label: '\u2212', style_class: 'settings-step-btn', reactive: true });
-            const widthVal = new St.Label({ text: currentWidth + 'px', style_class: 'settings-width-value', x_align: Clutter.ActorAlign.CENTER });
-            const incBtn = new St.Button({ label: '+', style_class: 'settings-step-btn', reactive: true });
-
-            decBtn.connect('clicked', () => {
-                currentWidth = Math.max(WIDTH_RANGE.min, currentWidth - WIDTH_RANGE.step);
-                widthVal.set_text(currentWidth + 'px');
+            const widthRow = new St.BoxLayout({ vertical: false, style_class: 'setting-control-row' });
+            const wDec = new St.Button({ label: '\u2212', style_class: 'settings-step-btn', reactive: true });
+            const wEntry = new St.Entry({
+                text: currentWidth + 'px',
+                style_class: 'setting-value-entry',
+                can_focus: true,
+            });
+            const wInc = new St.Button({ label: '+', style_class: 'settings-step-btn', reactive: true });
+            const applyWidth = (val) => {
+                currentWidth = Math.max(WIDTH_RANGE.min, Math.min(WIDTH_RANGE.max, val));
+                wEntry.set_text(currentWidth + 'px');
                 this.menu.actor.set_width(currentWidth);
                 AppSettings.set('width', currentWidth.toString());
+            };
+            wDec.connect('clicked', () => applyWidth(currentWidth - 1));
+            wInc.connect('clicked', () => applyWidth(currentWidth + 1));
+            wEntry.clutter_text.connect('activate', () => {
+                const val = parseInt(wEntry.get_text(), 10);
+                if (!isNaN(val)) applyWidth(val);
+                else wEntry.set_text(currentWidth + 'px');
             });
-            incBtn.connect('clicked', () => {
-                currentWidth = Math.min(WIDTH_RANGE.max, currentWidth + WIDTH_RANGE.step);
-                widthVal.set_text(currentWidth + 'px');
-                this.menu.actor.set_width(currentWidth);
-                AppSettings.set('width', currentWidth.toString());
-            });
-
-            widthRow.add_child(decBtn);
-            widthRow.add_child(new St.Widget({ x_expand: true }));
-            widthRow.add_child(widthVal);
-            widthRow.add_child(new St.Widget({ x_expand: true }));
-            widthRow.add_child(incBtn);
+            widthRow.add_child(wDec);
+            widthRow.add_child(wEntry);
+            widthRow.add_child(wInc);
             box.add_child(widthRow);
+
+            // ── Height ──
+            box.add_child(new St.Label({ text: 'Window Height', style_class: 'settings-section-title' }));
+            const heightRow = new St.BoxLayout({ vertical: false, style_class: 'setting-control-row' });
+            const hDec = new St.Button({ label: '\u2212', style_class: 'settings-step-btn', reactive: true });
+            const hEntry = new St.Entry({
+                text: currentHeight + 'px',
+                style_class: 'setting-value-entry',
+                can_focus: true,
+            });
+            const hInc = new St.Button({ label: '+', style_class: 'settings-step-btn', reactive: true });
+            const applyHeight = (val) => {
+                currentHeight = Math.max(HEIGHT_RANGE.min, Math.min(HEIGHT_RANGE.max, val));
+                hEntry.set_text(currentHeight + 'px');
+                this._scrollView.set_style('height: ' + currentHeight + 'px');
+                AppSettings.set('height', currentHeight.toString());
+            };
+            hDec.connect('clicked', () => applyHeight(currentHeight - 1));
+            hInc.connect('clicked', () => applyHeight(currentHeight + 1));
+            hEntry.clutter_text.connect('activate', () => {
+                const val = parseInt(hEntry.get_text(), 10);
+                if (!isNaN(val)) applyHeight(val);
+                else hEntry.set_text(currentHeight + 'px');
+            });
+            heightRow.add_child(hDec);
+            heightRow.add_child(hEntry);
+            heightRow.add_child(hInc);
+            box.add_child(heightRow);
+
+            // ── Font Size ──
+            box.add_child(new St.Label({ text: 'Font Size', style_class: 'settings-section-title' }));
+            const fontRow = new St.BoxLayout({ vertical: false, style_class: 'setting-control-row' });
+            const fDec = new St.Button({ label: '\u2212', style_class: 'settings-step-btn', reactive: true });
+            const fEntry = new St.Entry({
+                text: currentFontSize + 'px',
+                style_class: 'setting-value-entry',
+                can_focus: true,
+            });
+            const fInc = new St.Button({ label: '+', style_class: 'settings-step-btn', reactive: true });
+            const applyFontSize = (val) => {
+                currentFontSize = Math.max(FONT_SIZE_RANGE.min, Math.min(FONT_SIZE_RANGE.max, val));
+                fEntry.set_text(currentFontSize + 'px');
+                AppSettings.set('fontSize', currentFontSize.toString());
+                this._applyFontScale();
+            };
+            fDec.connect('clicked', () => applyFontSize(currentFontSize - 1));
+            fInc.connect('clicked', () => applyFontSize(currentFontSize + 1));
+            fEntry.clutter_text.connect('activate', () => {
+                const val = parseInt(fEntry.get_text(), 10);
+                if (!isNaN(val)) applyFontSize(val);
+                else fEntry.set_text(currentFontSize + 'px');
+            });
+            fontRow.add_child(fDec);
+            fontRow.add_child(fEntry);
+            fontRow.add_child(fInc);
+            box.add_child(fontRow);
 
             // ── Shortcut (read-only) ──
             box.add_child(new St.Label({ text: 'Keyboard Shortcut', style_class: 'settings-section-title' }));
@@ -615,6 +715,11 @@ var TicketIndicator = GObject.registerClass(
             this._settingsPanel.hide();
             this._searchEntry.show();
             this._scrollView.show();
+        }
+
+        _applyFontScale() {
+            const px = parseInt(AppSettings.get('fontSize'), 10) || 13;
+            this._innerContainer.set_style('font-size: ' + Math.max(FONT_SIZE_RANGE.min, Math.min(FONT_SIZE_RANGE.max, px)) + 'px');
         }
 
         _toggle() {
